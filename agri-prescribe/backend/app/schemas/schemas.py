@@ -30,6 +30,9 @@ class PlantBase(BaseModel):
     longitude: float
     crop_type: str
     status: str = "HEALTHY"
+    disease: Optional[str] = "Healthy Crop"
+    infection_percentage: Optional[float] = 0.0
+    severity: Optional[str] = "HEALTHY"
 
 class PlantCreate(PlantBase):
     field_id: int

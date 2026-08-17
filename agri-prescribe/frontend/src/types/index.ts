@@ -21,10 +21,22 @@ export interface Plant {
   longitude: number;
   crop_type: string;
   status: string;
-  disease: string;
-  infection_percentage: number;
-  severity: SeverityLevel;
-  created_at: string;
+  disease?: string;
+  infection_percentage?: number;
+  severity?: SeverityLevel;
+  created_at?: string;
+}
+
+export interface PlantCreateInput {
+  field_id: number;
+  plant_code: string;
+  latitude: number;
+  longitude: number;
+  crop_type: string;
+  status?: string;
+  disease?: string;
+  infection_percentage?: number;
+  severity?: SeverityLevel;
 }
 
 export interface Detection {

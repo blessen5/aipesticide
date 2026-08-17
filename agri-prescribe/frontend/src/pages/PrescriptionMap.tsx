@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import { 
   MapPin, 
@@ -47,8 +48,11 @@ const ChangeMapView: React.FC<{ center: [number, number] }> = ({ center }) => {
 };
 
 export const PrescriptionMap: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const initialFieldId = Number(searchParams.get('field_id')) || 1;
+
   const [fields, setFields] = useState<Field[]>([]);
-  const [selectedFieldId, setSelectedFieldId] = useState<number>(1);
+  const [selectedFieldId, setSelectedFieldId] = useState<number>(initialFieldId);
   const [mapData, setMapData] = useState<FieldPrescriptionMapResponse | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<PrescriptionMapFeature | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,14 +67,19 @@ export const PrescriptionMap: React.FC = () => {
         const res = await api.getFields();
         setFields(res);
         if (res.length > 0) {
-          setSelectedFieldId(res[0].id);
+          const urlParam = Number(searchParams.get('field_id'));
+          if (urlParam && res.some(f => f.id === urlParam)) {
+            setSelectedFieldId(urlParam);
+          } else {
+            setSelectedFieldId(res[0].id);
+          }
         }
       } catch (err) {
         console.error('Failed to load fields:', err);
       }
     };
     fetchFields();
-  }, []);
+  }, [searchParams]);
 
   // Load Field Prescription Map GeoJSON whenever selectedFieldId changes
   useEffect(() => {

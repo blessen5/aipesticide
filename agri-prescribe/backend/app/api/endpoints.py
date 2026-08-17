@@ -170,7 +170,7 @@ def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
 @router.post("/plants", response_model=PlantResponse, status_code=status.HTTP_201_CREATED)
 def create_plant(plant_in: PlantCreate, db: Session = Depends(get_db)):
     """
-    Create a new plant under a field.
+    Create a new plant under a field and automatically register its diagnosis & prescription.
     """
     field = db.query(Field).filter(Field.id == plant_in.field_id).first()
     if not field:
@@ -179,19 +179,50 @@ def create_plant(plant_in: PlantCreate, db: Session = Depends(get_db)):
             detail=f"Field with id {plant_in.field_id} not found"
         )
 
+    plant_severity = (plant_in.severity or plant_in.status or "HEALTHY").upper()
+    plant_disease = plant_in.disease or ("Healthy Crop" if plant_severity == "HEALTHY" else "Detected Issue")
+    plant_infection = plant_in.infection_percentage or 0.0
+
     plant = Plant(
         field_id=plant_in.field_id,
         plant_code=plant_in.plant_code,
         latitude=plant_in.latitude,
         longitude=plant_in.longitude,
-        crop_type=plant_in.crop_type,
-        status=plant_in.status.upper() if plant_in.status else "HEALTHY",
-        disease="Healthy Crop" if (not plant_in.status or plant_in.status.upper() == "HEALTHY") else "Detected Issue",
-        severity=plant_in.status.upper() if plant_in.status else "HEALTHY"
+        crop_type=plant_in.crop_type or field.crop_type,
+        status=plant_severity,
+        disease=plant_disease,
+        infection_percentage=plant_infection,
+        severity=plant_severity
     )
     db.add(plant)
     db.commit()
     db.refresh(plant)
+
+    # Auto-generate Prescription for the plant
+    presc_data = prescription_engine.generate(
+        severity=plant.severity,
+        disease=plant.disease,
+        infection_percentage=plant.infection_percentage,
+        crop_type=plant.crop_type,
+        plant_id=plant.id
+    )
+
+    presc = Prescription(
+        plant_id=plant.id,
+        crop_type=plant.crop_type,
+        disease=plant.disease,
+        infection_percentage=plant.infection_percentage,
+        severity=plant.severity,
+        recommended_action=presc_data["recommended_action"],
+        spray_level=presc_data["spray_level"],
+        recommended_volume_ml=presc_data["recommended_volume_ml"],
+        priority=presc_data["priority"],
+        reason=presc_data.get("reason", ""),
+        created_at=datetime.utcnow()
+    )
+    db.add(presc)
+    db.commit()
+
     return plant
 
 

@@ -42,6 +42,19 @@ export const api = {
     return res.json();
   },
 
+  createPlant: async (plantData: any): Promise<Plant> => {
+    const res = await fetch(`${API_BASE}/plants`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(plantData)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to create plant');
+    }
+    return res.json();
+  },
+
   // 5. Field Prescription GeoJSON Map
   getFieldPrescriptionMap: async (fieldId: number): Promise<FieldPrescriptionMapResponse> => {
     const res = await fetch(`${API_BASE}/fields/${fieldId}/prescription-map`);
