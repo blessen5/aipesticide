@@ -1,0 +1,395 @@
+import json
+import os
+from typing import List, Optional, Union
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body, status
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.models import User, Field, Plant, Detection, Prescription, SprayEvent, SprayerState
+from app.schemas.schemas import (
+    HealthResponse,
+    FieldResponse, FieldCreate,
+    PlantResponse, PlantCreate,
+    DetectionAnalyzeResponse,
+    PrescriptionGenerateRequest, PrescriptionGenerateResponse, PrescriptionResponse,
+    PrescriptionMapItem,
+    SprayerStatusResponse, SprayerSprayRequest, SprayerSprayResponse,
+    SprayEventResponse,
+    AnalyticsSummaryResponse,
+    DemoSeedResponse
+)
+from app.services.ai_service import ai_detector
+from app.services.prescription_service import prescription_engine
+from app.services.sprayer_service import sprayer_controller
+from app.services.demo_data_service import seed_demo_data
+from app.config import settings
+
+router = APIRouter()
+
+# ==========================================
+# 1. Health Endpoint
+# ==========================================
+@router.get("/health", response_model=HealthResponse)
+def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint returning API status and service name.
+    """
+    return HealthResponse(
+        status="online",
+        service="AgriPrescribe API"
+    )
+
+
+# ==========================================
+# 2. Fields Endpoints (CRUD)
+# ==========================================
+@router.post("/fields", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
+def create_field(field_in: FieldCreate, db: Session = Depends(get_db)):
+    """
+    Create a new field.
+    """
+    # Create or link default user if needed
+    user = db.query(User).first()
+    if not user:
+        user = User(name="Default Farmer", email="farmer@agriprescribe.in", role="Farmer")
+        db.add(user)
+        db.flush()
+
+    field = Field(
+        user_id=user.id,
+        name=field_in.name,
+        crop_type=field_in.crop_type,
+        area=field_in.area,
+        latitude=field_in.latitude,
+        longitude=field_in.longitude
+    )
+    db.add(field)
+    db.commit()
+    db.refresh(field)
+    return field
+
+
+@router.get("/fields", response_model=List[FieldResponse])
+def get_fields(db: Session = Depends(get_db)):
+    """
+    List all fields.
+    """
+    return db.query(Field).all()
+
+
+# ==========================================
+# 3. Plants Endpoints (CRUD)
+# ==========================================
+@router.post("/plants", response_model=PlantResponse, status_code=status.HTTP_201_CREATED)
+def create_plant(plant_in: PlantCreate, db: Session = Depends(get_db)):
+    """
+    Create a new plant under a field.
+    """
+    field = db.query(Field).filter(Field.id == plant_in.field_id).first()
+    if not field:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Field with id {plant_in.field_id} not found"
+        )
+
+    plant = Plant(
+        field_id=plant_in.field_id,
+        plant_code=plant_in.plant_code,
+        latitude=plant_in.latitude,
+        longitude=plant_in.longitude,
+        crop_type=plant_in.crop_type,
+        status=plant_in.status.upper() if plant_in.status else "HEALTHY",
+        disease="Healthy Crop" if (not plant_in.status or plant_in.status.upper() == "HEALTHY") else "Detected Issue",
+        severity=plant_in.status.upper() if plant_in.status else "HEALTHY"
+    )
+    db.add(plant)
+    db.commit()
+    db.refresh(plant)
+    return plant
+
+
+@router.get("/plants", response_model=List[PlantResponse])
+def get_plants(field_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """
+    List plants, optionally filtered by field_id.
+    """
+    query = db.query(Plant)
+    if field_id is not None:
+        query = query.filter(Plant.field_id == field_id)
+    return query.all()
+
+
+# ==========================================
+# 4. Image Detection & AI Analysis
+# ==========================================
+@router.post("/detections/analyze", response_model=DetectionAnalyzeResponse)
+@router.post("/ai/analyze", response_model=DetectionAnalyzeResponse)
+async def analyze_plant_image(
+    file: Optional[UploadFile] = File(None),
+    plant_id: Optional[Union[int, str]] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Analyze plant leaf image using AI detector and return diagnosis.
+    """
+    image_filename = "leaf_sample.jpg"
+    image_bytes = b""
+
+    if file:
+        image_bytes = await file.read()
+        image_filename = file.filename or "uploaded_leaf.jpg"
+        # Save upload locally
+        save_path = os.path.join(settings.UPLOADS_DIR, f"{int(datetime.utcnow().timestamp())}_{image_filename}")
+        with open(save_path, "wb") as f:
+            f.write(image_bytes)
+        image_url = f"/uploads/{os.path.basename(save_path)}"
+    else:
+        image_url = "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=800&auto=format&fit=crop"
+
+    # Run AI Detection Engine
+    ai_result = ai_detector.analyze(image_bytes, filename=image_filename)
+
+    int_plant_id: Optional[int] = None
+    if plant_id:
+        try:
+            int_plant_id = int(plant_id)
+        except (ValueError, TypeError):
+            int_plant_id = None
+
+    # Update plant in DB if found
+    if int_plant_id:
+        plant = db.query(Plant).filter(Plant.id == int_plant_id).first()
+        if plant:
+            plant.disease = ai_result["disease_detected"]
+            plant.infection_percentage = ai_result["infection_percentage"]
+            plant.severity = ai_result["severity"]
+            plant.status = ai_result["severity"]
+            db.commit()
+
+    # Save detection record
+    detection = Detection(
+        plant_id=int_plant_id,
+        image_url=image_url,
+        disease=ai_result["disease_detected"],
+        confidence=ai_result["confidence"],
+        infection_percentage=ai_result["infection_percentage"],
+        severity=ai_result["severity"],
+        analyzed_at=datetime.utcnow()
+    )
+    db.add(detection)
+    db.commit()
+
+    return DetectionAnalyzeResponse(
+        plant_id=plant_id,
+        disease=ai_result["disease_detected"],
+        confidence=ai_result["confidence"],
+        infection_percentage=ai_result["infection_percentage"],
+        severity=ai_result["severity"]
+    )
+
+
+# ==========================================
+# 5. Prescriptions Engine & Mapping
+# ==========================================
+@router.post("/prescriptions/generate", response_model=PrescriptionGenerateResponse)
+def generate_prescription(
+    req: PrescriptionGenerateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate prescription recommendation based on disease, infection percentage, and severity.
+    """
+    res = prescription_engine.generate(
+        severity=req.severity,
+        disease=req.disease,
+        infection_pct=req.infection_percentage,
+        plant_id=str(req.plant_id) if req.plant_id is not None else None
+    )
+
+    int_plant_id: Optional[int] = None
+    if req.plant_id is not None:
+        try:
+            int_plant_id = int(req.plant_id)
+        except (ValueError, TypeError):
+            int_plant_id = None
+
+    # Persist prescription
+    presc = Prescription(
+        plant_id=int_plant_id,
+        disease=res["disease"],
+        infection_percentage=res["infection_percentage"],
+        severity=res["severity"],
+        recommended_action=res["recommended_action"],
+        spray_level=res["spray_level"],
+        recommended_volume_ml=res["recommended_volume_ml"],
+        priority=res["priority"],
+        created_at=datetime.utcnow()
+    )
+    db.add(presc)
+    db.commit()
+    db.refresh(presc)
+
+    return PrescriptionGenerateResponse(
+        plant_id=req.plant_id,
+        disease=res["disease"],
+        infection_percentage=res["infection_percentage"],
+        severity=res["severity"],
+        recommended_action=res["recommended_action"],
+        spray_level=res["spray_level"],
+        recommended_volume_ml=res["recommended_volume_ml"],
+        priority=res["priority"]
+    )
+
+
+@router.get("/prescriptions", response_model=List[PrescriptionResponse])
+def get_prescriptions(db: Session = Depends(get_db)):
+    """
+    List all generated prescriptions.
+    """
+    return db.query(Prescription).order_by(Prescription.created_at.desc()).all()
+
+
+@router.get("/prescriptions/map", response_model=List[PrescriptionMapItem])
+def get_prescriptions_map(db: Session = Depends(get_db)):
+    """
+    Return geo-located prescription mapping data for field overlay.
+    """
+    plants = db.query(Plant).all()
+    map_items = []
+
+    for p in plants:
+        # Determine latest prescription or generate rule on the fly
+        rule = prescription_engine.DOSAGE_MAP.get(p.severity.upper(), prescription_engine.DOSAGE_MAP["HEALTHY"])
+        map_items.append(PrescriptionMapItem(
+            plant_id=p.id,
+            latitude=p.latitude,
+            longitude=p.longitude,
+            severity=p.severity,
+            infection_percentage=p.infection_percentage,
+            recommended_volume_ml=rule["recommended_volume_ml"],
+            priority=rule["priority"]
+        ))
+
+    return map_items
+
+
+# ==========================================
+# 6. Sprayer Control & History
+# ==========================================
+@router.get("/sprayer/status", response_model=SprayerStatusResponse)
+def get_sprayer_status(db: Session = Depends(get_db)):
+    """
+    Get current precision sprayer device state.
+    """
+    return sprayer_controller.get_status(db)
+
+
+@router.get("/sprayers")
+def get_sprayers(db: Session = Depends(get_db)):
+    """
+    Compatibility endpoint for sprayer device list.
+    """
+    status_info = sprayer_controller.get_status(db)
+    return [{
+        "id": 1,
+        "device_code": "ESP32-AGRI-01",
+        "name": "Precision Sprayer Alpha",
+        "status": status_info["status"],
+        "mode": status_info["mode"],
+        "battery_level": status_info["battery_level"],
+        "fluid_level_pct": status_info["fluid_level_pct"]
+    }]
+
+
+@router.post("/sprayer/spray", response_model=SprayerSprayResponse)
+@router.post("/sprayers/trigger", response_model=SprayerSprayResponse)
+def trigger_spray(
+    req: SprayerSprayRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Trigger precision spot spray on target plant.
+    """
+    try:
+        result = sprayer_controller.trigger_spray(
+            db=db,
+            plant_id=req.plant_id,
+            volume_ml=req.volume_ml,
+            mode=req.mode or "SIMULATED"
+        )
+        return SprayerSprayResponse(**result)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sprayer execution failed: {str(e)}"
+        )
+
+
+@router.get("/sprayer/history", response_model=List[SprayEventResponse])
+@router.get("/spray-events", response_model=List[SprayEventResponse])
+def get_spray_history(db: Session = Depends(get_db)):
+    """
+    List history log of all spray events.
+    """
+    return db.query(SprayEvent).order_by(SprayEvent.timestamp.desc()).all()
+
+
+# ==========================================
+# 7. Analytics Summary
+# ==========================================
+@router.get("/analytics/summary", response_model=AnalyticsSummaryResponse)
+@router.get("/analytics")
+def get_analytics_summary(db: Session = Depends(get_db)):
+    """
+    Compute aggregate analytics, severity breakdown, and chemical reduction estimation.
+    """
+    plants = db.query(Plant).all()
+    total_plants = len(plants)
+    healthy_count = sum(1 for p in plants if p.severity.upper() == "HEALTHY")
+    low_count = sum(1 for p in plants if p.severity.upper() == "LOW")
+    moderate_count = sum(1 for p in plants if p.severity.upper() == "MODERATE")
+    high_count = sum(1 for p in plants if p.severity.upper() == "HIGH")
+
+    # Actual precision spray volume recommended
+    total_spray_vol = sum(
+        prescription_engine.DOSAGE_MAP.get(p.severity.upper(), {}).get("recommended_volume_ml", 0.0)
+        for p in plants
+    )
+
+    # Conventional blanket spraying assumes uniform high treatment (e.g. 20ml per plant)
+    blanket_volume_estimate = total_plants * 20.0 if total_plants > 0 else 100.0
+    
+    if blanket_volume_estimate > 0:
+        reduction_pct = round(((blanket_volume_estimate - total_spray_vol) / blanket_volume_estimate) * 100.0, 1)
+    else:
+        reduction_pct = 65.0
+
+    return AnalyticsSummaryResponse(
+        total_plants=total_plants,
+        healthy_plants=healthy_count,
+        low_infection=low_count,
+        moderate_infection=moderate_count,
+        high_infection=high_count,
+        total_spray_volume=round(total_spray_vol, 1),
+        untreated_volume_estimate=round(blanket_volume_estimate, 1),
+        estimated_reduction_percentage=max(0.0, reduction_pct),
+        note="Reduction percentage is an algorithmically calculated estimate vs blanket uniform spraying."
+    )
+
+
+# ==========================================
+# 8. Demo Data Seeding
+# ==========================================
+@router.post("/demo/seed", response_model=DemoSeedResponse)
+def seed_demo(db: Session = Depends(get_db)):
+    """
+    Seeds demo fields, plants, prescriptions, and sprayer state for testing and presentation.
+    """
+    result = seed_demo_data(db, force_reseed=True)
+    return DemoSeedResponse(
+        message=result["message"],
+        fields_count=result["fields_count"],
+        plants_count=result["plants_count"],
+        prescriptions_count=result["prescriptions_count"]
+    )
