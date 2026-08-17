@@ -7,7 +7,8 @@ import {
   FieldPrescriptionMapResponse,
   SprayerStatus,
   SprayEvent,
-  AnalyticsSummary
+  AnalyticsSummary,
+  ExecutePrescriptionResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -116,7 +117,35 @@ export const api = {
     return res.json();
   },
 
-  // 11. Trigger Precision Spray
+  // 11. Start Sprayer
+  startSprayer: async (): Promise<{ status: string; message: string; mode: string }> => {
+    const res = await fetch(`${API_BASE}/sprayer/start`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start sprayer master controller');
+    return res.json();
+  },
+
+  // 12. Stop Sprayer
+  stopSprayer: async (): Promise<{ status: string; message: string }> => {
+    const res = await fetch(`${API_BASE}/sprayer/stop`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to stop sprayer master controller');
+    return res.json();
+  },
+
+  // 13. Execute Field Prescription Mission
+  executeFieldPrescription: async (fieldId: number, mode: string = 'SIMULATED'): Promise<ExecutePrescriptionResponse> => {
+    const res = await fetch(`${API_BASE}/sprayer/execute-prescription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field_id: fieldId, mode })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Field prescription execution failed');
+    }
+    return res.json();
+  },
+
+  // 14. Trigger Single Precision Spray
   triggerSpray: async (plantId: number | string, volumeMl: number, mode: string = 'SIMULATED'): Promise<SprayEvent> => {
     const res = await fetch(`${API_BASE}/sprayer/spray`, {
       method: 'POST',
@@ -134,14 +163,14 @@ export const api = {
     return res.json();
   },
 
-  // 12. Spray History
+  // 15. Spray History
   getSprayHistory: async (): Promise<SprayEvent[]> => {
     const res = await fetch(`${API_BASE}/sprayer/history`);
     if (!res.ok) throw new Error('Failed to fetch spray event history');
     return res.json();
   },
 
-  // 13. Reseed Demo Data
+  // 16. Reseed Demo Data
   seedDemoData: async () => {
     const res = await fetch(`${API_BASE}/demo/seed`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset and seed demo dataset');

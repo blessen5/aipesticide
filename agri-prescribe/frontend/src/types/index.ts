@@ -140,10 +140,37 @@ export interface FieldPrescriptionMapResponse {
 }
 
 export interface SprayerStatus {
-  status: 'READY' | 'SPRAYING' | 'STOPPED' | 'IDLE';
+  status: 'IDLE' | 'MOVING' | 'READY' | 'SPRAYING' | 'COMPLETED' | 'ERROR' | 'STOPPED';
   mode: string;
   battery_level: number;
   fluid_level_pct: number;
+  current_plant?: string;
+  current_status?: string;
+  current_spray_volume?: number;
+  progress_pct?: number;
+  total_plants?: number;
+  completed_plants?: number;
+  disclaimer?: string;
+}
+
+export interface ExecutionStepLog {
+  plant_code: string;
+  action: string;
+  volume_ml: number;
+  severity: string;
+  details: string;
+}
+
+export interface ExecutePrescriptionResponse {
+  field_id: number;
+  field_name: string;
+  status: string;
+  total_plants: number;
+  plants_treated: number;
+  plants_skipped_healthy: number;
+  total_volume_sprayed: number;
+  execution_logs: ExecutionStepLog[];
+  disclaimer: string;
 }
 
 export interface SprayEvent {

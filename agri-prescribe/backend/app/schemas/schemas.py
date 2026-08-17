@@ -129,10 +129,26 @@ class PrescriptionMapItem(BaseModel):
 
 # 7. Sprayer Schemas
 class SprayerStatusResponse(BaseModel):
-    status: str  # READY, SPRAYING, STOPPED, IDLE
+    status: str  # IDLE, MOVING, READY, SPRAYING, COMPLETED, ERROR
     mode: str = "SIMULATED"
     battery_level: int
     fluid_level_pct: int
+    current_plant: Optional[str] = None
+    current_status: Optional[str] = None
+    current_spray_volume: Optional[float] = 0.0
+    progress_pct: Optional[float] = 0.0
+    total_plants: Optional[int] = 0
+    completed_plants: Optional[int] = 0
+    disclaimer: str = "SIMULATION MODE: Operating in calibrated local demo mode for prototype evaluation."
+
+class SprayerStartResponse(BaseModel):
+    status: str
+    message: str
+    mode: str = "SIMULATED"
+
+class SprayerStopResponse(BaseModel):
+    status: str
+    message: str
 
 class SprayerSprayRequest(BaseModel):
     plant_id: Union[int, str]
@@ -146,6 +162,28 @@ class SprayerSprayResponse(BaseModel):
     volume_ml: float
     timestamp: str
     mode: str = "SIMULATED"
+
+class ExecutePrescriptionRequest(BaseModel):
+    field_id: int
+    mode: Optional[str] = "SIMULATED"
+
+class ExecutionStepLog(BaseModel):
+    plant_code: str
+    action: str  # MOVING, READY, SPRAYING, SKIPPED, COMPLETED
+    volume_ml: float
+    severity: str
+    details: str
+
+class ExecutePrescriptionResponse(BaseModel):
+    field_id: int
+    field_name: str
+    status: str
+    total_plants: int
+    plants_treated: int
+    plants_skipped_healthy: int
+    total_volume_sprayed: float
+    execution_logs: List[ExecutionStepLog]
+    disclaimer: str = "SIMULATION MODE: Prototype demonstration only. No physical chemicals dispensed."
 
 # 8. Prescription List Response Schema
 class PrescriptionResponse(BaseModel):

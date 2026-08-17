@@ -375,3 +375,81 @@ def test_get_field_prescription_map_success(client):
 def test_get_field_prescription_map_not_found(client):
     response = client.get("/api/fields/99999/prescription-map")
     assert response.status_code == 404
+
+
+# 12. Test Automated Sprayer Simulation & State Machine
+def test_sprayer_status_and_lifecycle(client):
+    # 1. Get status
+    res = client.get("/api/sprayer/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert "status" in data
+    assert data["mode"] == "SIMULATED"
+    assert "battery_level" in data
+    assert "fluid_level_pct" in data
+
+    # 2. Stop sprayer
+    res_stop = client.post("/api/sprayer/stop")
+    assert res_stop.status_code == 200
+    assert res_stop.json()["status"] == "IDLE"
+
+    # Verify status is IDLE
+    res = client.get("/api/sprayer/status")
+    assert res.json()["status"] == "IDLE"
+
+    # 3. Start sprayer
+    res_start = client.post("/api/sprayer/start")
+    assert res_start.status_code == 200
+    assert res_start.json()["status"] == "READY"
+
+
+def test_execute_field_prescription_automated_workflow(client):
+    # 1. Seed demo data to ensure clean field
+    client.post("/api/demo/seed")
+
+    # 2. Execute field prescription mission
+    response = client.post("/api/sprayer/execute-prescription", json={"field_id": 1, "mode": "SIMULATED"})
+    assert response.status_code == 200
+    res = response.json()
+
+    assert res["field_id"] == 1
+    assert res["status"] == "COMPLETED"
+    assert res["total_plants"] > 0
+    assert res["plants_treated"] > 0
+    assert res["plants_skipped_healthy"] > 0
+    assert res["total_volume_sprayed"] > 0.0
+    assert "SIMULATION MODE" in res["disclaimer"]
+
+    # 3. Verify execution step logs for simulated movement and safety enforcement
+    logs = res["execution_logs"]
+    assert len(logs) > 0
+
+    has_moving = any(l["action"] == "MOVING" for l in logs)
+    has_spraying = any(l["action"] == "SPRAYING" for l in logs)
+    has_skipped_healthy = any(l["action"] == "SKIPPED" and l["severity"] == "HEALTHY" for l in logs)
+
+    assert has_moving, "Simulation must log MOVING step transitions"
+    assert has_spraying, "Simulation must log SPRAYING step transitions for infected crops"
+    assert has_skipped_healthy, "Simulation must strictly skip and lock spray for HEALTHY plants"
+
+    # 4. Verify safety check: No healthy plant receives chemical volume
+    for l in logs:
+        if l["severity"] == "HEALTHY":
+            assert l["volume_ml"] == 0.0, "Healthy plant must receive 0 mL spray!"
+            assert l["action"] != "SPRAYING", "Healthy plant must never be marked SPRAYING!"
+
+
+def test_safety_rule_single_spot_spray_healthy_fails(client):
+    # Retrieve a healthy plant
+    plants_res = client.get("/api/plants?field_id=1").json()
+    healthy_plant = next((p for p in plants_res if p["severity"] == "HEALTHY"), None)
+    
+    if healthy_plant:
+        # Attempting to spray healthy plant must fail with 400 Bad Request
+        res = client.post("/api/sprayer/spray", json={
+            "plant_id": healthy_plant["id"],
+            "volume_ml": 10.0,
+            "mode": "SIMULATED"
+        })
+        assert res.status_code == 400
+        assert "healthy" in res.json()["detail"].lower()

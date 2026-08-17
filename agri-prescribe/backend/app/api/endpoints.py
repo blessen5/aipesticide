@@ -16,7 +16,9 @@ from app.schemas.schemas import (
     PrescriptionMapItem,
     GeoJSONPointGeometry, PrescriptionMapFeatureProperties, PrescriptionMapFeature,
     FieldPrescriptionSummary, FieldPrescriptionMapResponse,
-    SprayerStatusResponse, SprayerSprayRequest, SprayerSprayResponse,
+    SprayerStatusResponse, SprayerStartResponse, SprayerStopResponse,
+    SprayerSprayRequest, SprayerSprayResponse,
+    ExecutePrescriptionRequest, ExecutePrescriptionResponse, ExecutionStepLog,
     SprayEventResponse,
     AnalyticsSummaryResponse,
     DemoSeedResponse
@@ -447,14 +449,74 @@ def get_prescription_by_plant_id(plant_id: int, db: Session = Depends(get_db)):
 
 
 # ==========================================
-# 6. Sprayer Control & History
+# 6. Sprayer Control & Automated Simulation
 # ==========================================
 @router.get("/sprayer/status", response_model=SprayerStatusResponse)
 def get_sprayer_status(db: Session = Depends(get_db)):
     """
-    Get current precision sprayer device state.
+    Get current precision sprayer state machine status and mission telemetry.
     """
     return sprayer_controller.get_status(db)
+
+
+@router.post("/sprayer/start", response_model=SprayerStartResponse)
+def start_sprayer(db: Session = Depends(get_db)):
+    """
+    Arm and start the sprayer state machine (sets state to READY).
+    """
+    return sprayer_controller.start(db)
+
+
+@router.post("/sprayer/stop", response_model=SprayerStopResponse)
+def stop_sprayer(db: Session = Depends(get_db)):
+    """
+    Emergency halt the sprayer (sets state to IDLE).
+    """
+    return sprayer_controller.stop(db)
+
+
+@router.post("/sprayer/execute-prescription", response_model=ExecutePrescriptionResponse)
+def execute_prescription_mission(
+    req: Optional[ExecutePrescriptionRequest] = Body(None),
+    field_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Automated Field Prescription Execution:
+    Prescription Map → Sprayer receives commands → moves to target plant → checks prescription → sprays required volume → records event.
+    Enforces that healthy plants are NEVER sprayed.
+    """
+    target_field_id = None
+    target_mode = "SIMULATED"
+
+    if req and req.field_id:
+        target_field_id = req.field_id
+        target_mode = req.mode or "SIMULATED"
+    elif field_id is not None:
+        target_field_id = field_id
+    else:
+        # Default to first field
+        first_field = db.query(Field).first()
+        if first_field:
+            target_field_id = first_field.id
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No agricultural fields registered to execute prescription."
+            )
+
+    try:
+        result = sprayer_controller.execute_field_prescription(
+            db=db,
+            field_id=target_field_id,
+            mode=target_mode
+        )
+        return ExecutePrescriptionResponse(**result)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Field prescription execution failed: {str(e)}"
+        )
 
 
 @router.get("/sprayers")
@@ -481,7 +543,7 @@ def trigger_spray(
     db: Session = Depends(get_db)
 ):
     """
-    Trigger precision spot spray on target plant.
+    Trigger single targeted spot spray on a plant.
     """
     try:
         result = sprayer_controller.trigger_spray(
