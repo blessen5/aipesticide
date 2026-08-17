@@ -1,21 +1,13 @@
 export type SeverityLevel = 'HEALTHY' | 'LOW' | 'MODERATE' | 'HIGH';
-
-export interface BoundingBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-}
+export type PriorityLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+export type RecommendedAction = 'NO_TREATMENT' | 'TARGETED_TREATMENT';
+export type SprayLevel = 'NO_TREATMENT' | 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface Field {
   id: number;
-  user_id: number;
   name: string;
-  location_name: string;
   crop_type: string;
-  area_hectares: number;
-  boundary_geojson?: string;
+  area: number;
   latitude: number;
   longitude: number;
   created_at: string;
@@ -24,85 +16,142 @@ export interface Field {
 export interface Plant {
   id: number;
   field_id: number;
-  tag_id: string;
+  plant_code: string;
   latitude: number;
   longitude: number;
-  health_status: string;
+  crop_type: string;
+  status: string;
+  disease: string;
+  infection_percentage: number;
+  severity: SeverityLevel;
   created_at: string;
 }
 
 export interface Detection {
   id: number;
   plant_id?: number;
-  field_id?: number;
   image_url: string;
-  disease_detected: string;
+  disease: string;
   confidence: number;
   infection_percentage: number;
   severity: SeverityLevel;
-  bounding_boxes_json?: string;
   analyzed_at: string;
+}
+
+export interface DetectionAnalyzeResponse {
+  plant_id?: number | string;
+  disease: string;
+  confidence: number;
+  infection_percentage: number;
+  severity: SeverityLevel;
+  affected_area: number;
+  explanation: string;
+  boxes?: Array<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    label: string;
+  }>;
 }
 
 export interface Prescription {
   id: number;
-  detection_id: number;
-  field_id: number;
-  pesticide_name: string;
-  chemical_category: string;
-  dosage_ml_per_liter: number;
+  plant_id?: number;
+  crop_type?: string;
+  disease: string;
+  infection_percentage: number;
+  severity: SeverityLevel;
+  recommended_action: string;
+  spray_level: string;
   recommended_volume_ml: number;
-  target_area_m2: number;
-  spray_urgency: string;
-  active_ingredients?: string;
-  safety_notes?: string;
+  priority: string;
+  reason?: string;
   created_at: string;
+}
+
+export interface PrescriptionGenerateResponse {
+  id?: number;
+  plant_id?: number | string;
+  crop_type?: string;
+  disease: string;
+  infection_percentage: number;
+  severity: SeverityLevel;
+  recommended_action: string;
+  spray_level: string;
+  recommended_volume_ml: number;
+  priority: string;
+  reason?: string;
+  disclaimer?: string;
+}
+
+export interface PrescriptionMapFeatureProperties {
+  plant_id: number | string;
+  plant_code: string;
+  disease: string;
+  severity: SeverityLevel;
+  infection_percentage: number;
+  recommended_volume_ml: number;
+  priority: string;
+  recommended_action: string;
+  spray_level: string;
+}
+
+export interface PrescriptionMapFeature {
+  type: 'Feature';
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+  properties: PrescriptionMapFeatureProperties;
+}
+
+export interface FieldPrescriptionSummary {
+  total_plants: number;
+  healthy: number;
+  low: number;
+  moderate: number;
+  high: number;
+  total_recommended_spray: number;
+  blanket_spray_estimate: number;
+  estimated_reduction_percentage: number;
+}
+
+export interface FieldPrescriptionMapResponse {
+  type: 'FeatureCollection';
+  field_id: number;
+  field_name: string;
+  crop_type: string;
+  area: number;
+  features: PrescriptionMapFeature[];
+  summary: FieldPrescriptionSummary;
+}
+
+export interface SprayerStatus {
+  status: 'READY' | 'SPRAYING' | 'STOPPED' | 'IDLE';
+  mode: string;
+  battery_level: number;
+  fluid_level_pct: number;
 }
 
 export interface SprayEvent {
   id: number;
-  prescription_id: number;
-  device_id: number;
-  status: 'PENDING' | 'SPRAYING' | 'COMPLETED' | 'FAILED';
-  volume_sprayed_ml: number;
-  coverage_percentage: number;
+  command_id: string;
+  plant_id?: number;
+  volume_ml: number;
+  status: string;
   mode: string;
-  notes?: string;
-  start_time: string;
-  end_time?: string;
+  timestamp: string;
 }
 
-export interface Device {
-  id: number;
-  field_id?: number;
-  device_code: string;
-  name: string;
-  status: 'ONLINE' | 'OFFLINE' | 'SPRAYING';
-  battery_level: number;
-  fluid_level_pct: number;
-  ip_address: string;
-  last_heartbeat: string;
-}
-
-export interface AIAnalysisResponse {
-  disease_detected: string;
-  confidence: number;
-  infection_percentage: number;
-  severity: SeverityLevel;
-  bounding_boxes: BoundingBox[];
-  image_url: string;
-  crop_identified: string;
-  detection_id?: number;
-}
-
-export interface DashboardStats {
-  total_fields: number;
+export interface AnalyticsSummary {
   total_plants: number;
-  total_detections: number;
-  active_prescriptions: number;
-  completed_sprays: number;
-  active_devices: number;
-  average_infection_pct: number;
-  pesticide_saved_liters: number;
-  chemical_reduction_percentage: number;
+  healthy_plants: number;
+  low_infection: number;
+  moderate_infection: number;
+  high_infection: number;
+  total_spray_volume: number;
+  untreated_volume_estimate: number;
+  estimated_reduction_percentage: number;
+  note: string;
 }

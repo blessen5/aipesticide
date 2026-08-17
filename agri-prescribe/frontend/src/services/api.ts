@@ -1,39 +1,40 @@
 import {
   Field,
   Plant,
-  Detection,
+  DetectionAnalyzeResponse,
   Prescription,
+  PrescriptionGenerateResponse,
+  FieldPrescriptionMapResponse,
+  SprayerStatus,
   SprayEvent,
-  Device,
-  AIAnalysisResponse,
-  DashboardStats
+  AnalyticsSummary
 } from '../types';
 
 const API_BASE = '/api';
 
 export const api = {
-  // Health
-  getHealth: async () => {
+  // 1. Health check
+  getHealth: async (): Promise<{ status: string; service: string }> => {
     const res = await fetch(`${API_BASE}/health`);
-    if (!res.ok) throw new Error('Health check failed');
+    if (!res.ok) throw new Error('API is currently unreachable');
     return res.json();
   },
 
-  // Dashboard stats
-  getDashboardStats: async (): Promise<DashboardStats> => {
-    const res = await fetch(`${API_BASE}/dashboard/stats`);
-    if (!res.ok) throw new Error('Failed to fetch dashboard stats');
+  // 2. Analytics Summary
+  getAnalyticsSummary: async (): Promise<AnalyticsSummary> => {
+    const res = await fetch(`${API_BASE}/analytics/summary`);
+    if (!res.ok) throw new Error('Failed to fetch analytics summary');
     return res.json();
   },
 
-  // Fields
+  // 3. Fields
   getFields: async (): Promise<Field[]> => {
     const res = await fetch(`${API_BASE}/fields`);
-    if (!res.ok) throw new Error('Failed to fetch fields');
+    if (!res.ok) throw new Error('Failed to fetch agricultural fields');
     return res.json();
   },
 
-  // Plants
+  // 4. Plants
   getPlants: async (fieldId?: number): Promise<Plant[]> => {
     const url = fieldId ? `${API_BASE}/plants?field_id=${fieldId}` : `${API_BASE}/plants`;
     const res = await fetch(url);
@@ -41,73 +42,96 @@ export const api = {
     return res.json();
   },
 
-  // Detections
-  getDetections: async (): Promise<Detection[]> => {
-    const res = await fetch(`${API_BASE}/detections`);
-    if (!res.ok) throw new Error('Failed to fetch detections');
+  // 5. Field Prescription GeoJSON Map
+  getFieldPrescriptionMap: async (fieldId: number): Promise<FieldPrescriptionMapResponse> => {
+    const res = await fetch(`${API_BASE}/fields/${fieldId}/prescription-map`);
+    if (!res.ok) throw new Error(`Failed to load prescription map for field #${fieldId}`);
     return res.json();
   },
 
-  // AI Image Analysis
-  analyzeImage: async (formData: FormData): Promise<AIAnalysisResponse> => {
-    const res = await fetch(`${API_BASE}/ai/analyze`, {
+  // 6. AI Disease Detection
+  analyzePlantImage: async (formData: FormData): Promise<DetectionAnalyzeResponse> => {
+    const res = await fetch(`${API_BASE}/detection/analyze`, {
       method: 'POST',
       body: formData,
     });
-    if (!res.ok) throw new Error('AI Image analysis failed');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Plant disease analysis failed');
+    }
     return res.json();
   },
 
-  // Prescriptions
+  // 7. Prescription Generator
+  generatePrescription: async (payload: {
+    plant_id?: number | string;
+    crop_type?: string;
+    disease: string;
+    infection_percentage: number;
+    severity: string;
+  }): Promise<PrescriptionGenerateResponse> => {
+    const res = await fetch(`${API_BASE}/prescriptions/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Prescription generation failed');
+    }
+    return res.json();
+  },
+
+  // 8. Prescriptions List
   getPrescriptions: async (): Promise<Prescription[]> => {
     const res = await fetch(`${API_BASE}/prescriptions`);
     if (!res.ok) throw new Error('Failed to fetch prescriptions');
     return res.json();
   },
 
-  // Sprayers / Devices
-  getSprayers: async (): Promise<Device[]> => {
-    const res = await fetch(`${API_BASE}/sprayers`);
-    if (!res.ok) throw new Error('Failed to fetch sprayers');
+  // 9. Prescription by Plant ID
+  getPrescriptionByPlantId: async (plantId: number): Promise<Prescription> => {
+    const res = await fetch(`${API_BASE}/prescriptions/${plantId}`);
+    if (!res.ok) throw new Error(`Prescription for plant #${plantId} not found`);
     return res.json();
   },
 
-  // Trigger Precision Spray
-  triggerSprayer: async (prescriptionId: number, deviceId: number, mode: string = 'SIMULATED') => {
-    const res = await fetch(`${API_BASE}/sprayers/trigger`, {
+  // 10. Sprayer Status
+  getSprayerStatus: async (): Promise<SprayerStatus> => {
+    const res = await fetch(`${API_BASE}/sprayer/status`);
+    if (!res.ok) throw new Error('Failed to fetch sprayer telemetry');
+    return res.json();
+  },
+
+  // 11. Trigger Precision Spray
+  triggerSpray: async (plantId: number | string, volumeMl: number, mode: string = 'SIMULATED'): Promise<SprayEvent> => {
+    const res = await fetch(`${API_BASE}/sprayer/spray`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        prescription_id: prescriptionId,
-        device_id: deviceId,
+        plant_id: plantId,
+        volume_ml: volumeMl,
         mode: mode
       })
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Sprayer trigger failed');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Sprayer execution failed');
     }
     return res.json();
   },
 
-  // Spray Events History
-  getSprayEvents: async (): Promise<SprayEvent[]> => {
-    const res = await fetch(`${API_BASE}/spray-events`);
-    if (!res.ok) throw new Error('Failed to fetch spray history');
+  // 12. Spray History
+  getSprayHistory: async (): Promise<SprayEvent[]> => {
+    const res = await fetch(`${API_BASE}/sprayer/history`);
+    if (!res.ok) throw new Error('Failed to fetch spray event history');
     return res.json();
   },
 
-  // Analytics
-  getAnalytics: async () => {
-    const res = await fetch(`${API_BASE}/analytics`);
-    if (!res.ok) throw new Error('Failed to fetch analytics');
-    return res.json();
-  },
-
-  // Reset & Seed Demo Data
+  // 13. Reseed Demo Data
   seedDemoData: async () => {
     const res = await fetch(`${API_BASE}/demo/seed`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to seed demo data');
+    if (!res.ok) throw new Error('Failed to reset and seed demo dataset');
     return res.json();
   }
 };
