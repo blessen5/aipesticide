@@ -14,6 +14,8 @@ from app.schemas.schemas import (
     DetectionAnalyzeResponse,
     PrescriptionGenerateRequest, PrescriptionGenerateResponse, PrescriptionResponse,
     PrescriptionMapItem,
+    GeoJSONPointGeometry, PrescriptionMapFeatureProperties, PrescriptionMapFeature,
+    FieldPrescriptionSummary, FieldPrescriptionMapResponse,
     SprayerStatusResponse, SprayerSprayRequest, SprayerSprayResponse,
     SprayEventResponse,
     AnalyticsSummaryResponse,
@@ -76,6 +78,90 @@ def get_fields(db: Session = Depends(get_db)):
     List all fields.
     """
     return db.query(Field).all()
+
+
+@router.get("/fields/{field_id}/prescription-map", response_model=FieldPrescriptionMapResponse)
+def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
+    """
+    Convert individual plant analysis results into a visual GeoJSON FeatureCollection prescription map.
+    Includes field metadata, GeoJSON point features [longitude, latitude], and field summary metrics.
+    Guarantees that private user data is never exposed.
+    """
+    field = db.query(Field).filter(Field.id == field_id).first()
+    if not field:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Field with ID {field_id} not found"
+        )
+
+    plants = db.query(Plant).filter(Plant.field_id == field_id).all()
+
+    features = []
+    healthy_count = 0
+    low_count = 0
+    moderate_count = 0
+    high_count = 0
+    total_spray_vol = 0.0
+
+    for p in plants:
+        sev = (p.severity or "HEALTHY").upper()
+        if sev == "HEALTHY":
+            healthy_count += 1
+        elif sev == "LOW":
+            low_count += 1
+        elif sev == "MODERATE":
+            moderate_count += 1
+        elif sev == "HIGH":
+            high_count += 1
+
+        rule = prescription_engine.DOSAGE_MAP.get(sev, prescription_engine.DOSAGE_MAP["HEALTHY"])
+        vol = float(rule["recommended_volume_ml"])
+        total_spray_vol += vol
+
+        feature = PrescriptionMapFeature(
+            type="Feature",
+            geometry=GeoJSONPointGeometry(
+                type="Point",
+                coordinates=[p.longitude, p.latitude]  # [longitude, latitude] as per GeoJSON RFC 7946 standard
+            ),
+            properties=PrescriptionMapFeatureProperties(
+                plant_id=p.id,
+                plant_code=p.plant_code,
+                disease=p.disease or "Healthy Crop",
+                severity=sev,
+                infection_percentage=p.infection_percentage or 0.0,
+                recommended_volume_ml=vol,
+                priority=rule["priority"],
+                recommended_action=rule["recommended_action"],
+                spray_level=rule["spray_level"]
+            )
+        )
+        features.append(feature)
+
+    total_plants = len(plants)
+    blanket_volume_estimate = total_plants * 20.0 if total_plants > 0 else 0.0
+    reduction_pct = round(((blanket_volume_estimate - total_spray_vol) / blanket_volume_estimate) * 100.0, 1) if blanket_volume_estimate > 0 else 0.0
+
+    summary = FieldPrescriptionSummary(
+        total_plants=total_plants,
+        healthy=healthy_count,
+        low=low_count,
+        moderate=moderate_count,
+        high=high_count,
+        total_recommended_spray=round(total_spray_vol, 1),
+        blanket_spray_estimate=round(blanket_volume_estimate, 1),
+        estimated_reduction_percentage=max(0.0, reduction_pct)
+    )
+
+    return FieldPrescriptionMapResponse(
+        type="FeatureCollection",
+        field_id=field.id,
+        field_name=field.name,
+        crop_type=field.crop_type,
+        area=field.area,
+        features=features,
+        summary=summary
+    )
 
 
 # ==========================================

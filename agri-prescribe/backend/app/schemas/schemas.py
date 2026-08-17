@@ -73,11 +73,52 @@ class PrescriptionGenerateResponse(BaseModel):
     disclaimer: Optional[str] = None
     id: Optional[int] = None
 
-# 6. Prescription Map Item Schema
+# 6. GeoJSON Prescription Map Schemas
+class GeoJSONPointGeometry(BaseModel):
+    type: str = "Point"
+    coordinates: List[float]  # [longitude, latitude] as per GeoJSON RFC 7946
+
+class PrescriptionMapFeatureProperties(BaseModel):
+    plant_id: Union[int, str]
+    plant_code: str
+    disease: str
+    severity: str
+    infection_percentage: float
+    recommended_volume_ml: float
+    priority: str
+    recommended_action: str = "TARGETED_TREATMENT"
+    spray_level: str = "NO_TREATMENT"
+
+class PrescriptionMapFeature(BaseModel):
+    type: str = "Feature"
+    geometry: GeoJSONPointGeometry
+    properties: PrescriptionMapFeatureProperties
+
+class FieldPrescriptionSummary(BaseModel):
+    total_plants: int
+    healthy: int
+    low: int
+    moderate: int
+    high: int
+    total_recommended_spray: float
+    blanket_spray_estimate: float
+    estimated_reduction_percentage: float
+
+class FieldPrescriptionMapResponse(BaseModel):
+    type: str = "FeatureCollection"
+    field_id: int
+    field_name: str
+    crop_type: str
+    area: float
+    features: List[PrescriptionMapFeature]
+    summary: FieldPrescriptionSummary
+
 class PrescriptionMapItem(BaseModel):
     plant_id: Union[int, str]
+    plant_code: Optional[str] = None
     latitude: float
     longitude: float
+    disease: Optional[str] = "Healthy Crop"
     severity: str
     infection_percentage: float
     recommended_volume_ml: float

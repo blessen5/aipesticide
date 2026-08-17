@@ -301,3 +301,77 @@ def test_analytics_summary(client):
         analytics["high_infection"]
     )
     assert analytics["estimated_reduction_percentage"] > 0.0
+
+
+# 11. Test Field GeoJSON Prescription Map Endpoint
+def test_get_field_prescription_map_success(client):
+    response = client.get("/api/fields/1/prescription-map")
+    assert response.status_code == 200
+    res = response.json()
+
+    # GeoJSON FeatureCollection verification
+    assert res["type"] == "FeatureCollection"
+    assert res["field_id"] == 1
+    assert "field_name" in res
+    assert "crop_type" in res
+    assert "area" in res
+    assert isinstance(res["features"], list)
+    assert len(res["features"]) > 0
+
+    # Privacy verification: Ensure no user personal credentials / email / user_id are exposed
+    assert "user_id" not in res
+    assert "email" not in res
+    assert "user_email" not in res
+    assert "password" not in res
+
+    # Feature geometry and properties verification
+    for feature in res["features"]:
+        assert feature["type"] == "Feature"
+        geom = feature["geometry"]
+        assert geom["type"] == "Point"
+        assert len(geom["coordinates"]) == 2
+        lng, lat = geom["coordinates"]
+        # Coordinates must be valid GPS numbers [longitude, latitude]
+        assert -180.0 <= lng <= 180.0
+        assert -90.0 <= lat <= 90.0
+
+        props = feature["properties"]
+        assert "plant_id" in props
+        assert "plant_code" in props
+        assert "disease" in props
+        assert "infection_percentage" in props
+        assert "severity" in props
+        assert "recommended_volume_ml" in props
+        assert "priority" in props
+
+        # Verify dosage alignment
+        if props["severity"] == "HEALTHY":
+            assert props["recommended_volume_ml"] == 0.0
+            assert props["priority"] == "NONE"
+        elif props["severity"] == "LOW":
+            assert props["recommended_volume_ml"] == 5.0
+            assert props["priority"] == "LOW"
+        elif props["severity"] == "MODERATE":
+            assert props["recommended_volume_ml"] == 10.0
+            assert props["priority"] == "MEDIUM"
+        elif props["severity"] == "HIGH":
+            assert props["recommended_volume_ml"] == 20.0
+            assert props["priority"] == "HIGH"
+
+    # Summary verification
+    summary = res["summary"]
+    assert summary["total_plants"] == len(res["features"])
+    assert (
+        summary["healthy"] +
+        summary["low"] +
+        summary["moderate"] +
+        summary["high"]
+    ) == summary["total_plants"]
+    assert summary["total_recommended_spray"] >= 0.0
+    assert summary["blanket_spray_estimate"] >= summary["total_recommended_spray"]
+    assert summary["estimated_reduction_percentage"] >= 0.0
+
+
+def test_get_field_prescription_map_not_found(client):
+    response = client.get("/api/fields/99999/prescription-map")
+    assert response.status_code == 404
