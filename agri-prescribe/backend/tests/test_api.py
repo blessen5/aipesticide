@@ -145,8 +145,30 @@ def test_create_plant_invalid_field(client):
 
 
 # 5. Test Image Detection & Analysis Endpoint
+def test_detection_analyze_singular_endpoint(client):
+    # Generate a simple synthetic image
+    img = Image.new("RGB", (100, 100), color=(34, 139, 34))
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="JPEG")
+    img_bytes = img_byte_arr.getvalue()
+
+    files = {"file": ("leaf_blight_sample.jpg", img_bytes, "image/jpeg")}
+    data = {"plant_id": "1"}
+
+    response = client.post("/api/detection/analyze", files=files, data=data)
+    assert response.status_code == 200
+    result = response.json()
+    assert "disease" in result
+    assert "confidence" in result
+    assert "infection_percentage" in result
+    assert result["severity"] in ["HEALTHY", "LOW", "MODERATE", "HIGH"]
+    assert "affected_area" in result
+    assert "explanation" in result
+    assert len(result["explanation"]) > 0
+
+
 def test_detection_analyze_with_synthetic_image(client):
-    # Generate a simple synthetic green image in memory
+    # Test plural alias /api/detections/analyze
     img = Image.new("RGB", (100, 100), color=(34, 139, 34))
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format="JPEG")
@@ -158,10 +180,9 @@ def test_detection_analyze_with_synthetic_image(client):
     response = client.post("/api/detections/analyze", files=files, data=data)
     assert response.status_code == 200
     result = response.json()
-    assert "disease" in result
-    assert "confidence" in result
-    assert "infection_percentage" in result
-    assert result["severity"] in ["HEALTHY", "LOW", "MODERATE", "HIGH"]
+    assert result["disease"] == "Healthy"
+    assert result["severity"] == "HEALTHY"
+    assert result["affected_area"] == 0.0
 
 
 # 6. Test Prescription Generation with Dosage Rules

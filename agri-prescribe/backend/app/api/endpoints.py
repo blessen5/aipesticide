@@ -123,6 +123,7 @@ def get_plants(field_id: Optional[int] = None, db: Session = Depends(get_db)):
 # ==========================================
 # 4. Image Detection & AI Analysis
 # ==========================================
+@router.post("/detection/analyze", response_model=DetectionAnalyzeResponse)
 @router.post("/detections/analyze", response_model=DetectionAnalyzeResponse)
 @router.post("/ai/analyze", response_model=DetectionAnalyzeResponse)
 async def analyze_plant_image(
@@ -132,6 +133,7 @@ async def analyze_plant_image(
 ):
     """
     Analyze plant leaf image using AI detector and return diagnosis.
+    Supports /api/detection/analyze, /api/detections/analyze, and /api/ai/analyze.
     """
     image_filename = "leaf_sample.jpg"
     image_bytes = b""
@@ -147,8 +149,8 @@ async def analyze_plant_image(
     else:
         image_url = "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=800&auto=format&fit=crop"
 
-    # Run AI Detection Engine
-    ai_result = ai_detector.analyze(image_bytes, filename=image_filename)
+    # Run AI Detection Service
+    ai_result = ai_detector.analyze_image(image_bytes, filename=image_filename)
 
     int_plant_id: Optional[int] = None
     if plant_id:
@@ -161,7 +163,7 @@ async def analyze_plant_image(
     if int_plant_id:
         plant = db.query(Plant).filter(Plant.id == int_plant_id).first()
         if plant:
-            plant.disease = ai_result["disease_detected"]
+            plant.disease = ai_result["disease"]
             plant.infection_percentage = ai_result["infection_percentage"]
             plant.severity = ai_result["severity"]
             plant.status = ai_result["severity"]
@@ -171,7 +173,7 @@ async def analyze_plant_image(
     detection = Detection(
         plant_id=int_plant_id,
         image_url=image_url,
-        disease=ai_result["disease_detected"],
+        disease=ai_result["disease"],
         confidence=ai_result["confidence"],
         infection_percentage=ai_result["infection_percentage"],
         severity=ai_result["severity"],
@@ -182,10 +184,13 @@ async def analyze_plant_image(
 
     return DetectionAnalyzeResponse(
         plant_id=plant_id,
-        disease=ai_result["disease_detected"],
+        disease=ai_result["disease"],
         confidence=ai_result["confidence"],
         infection_percentage=ai_result["infection_percentage"],
-        severity=ai_result["severity"]
+        severity=ai_result["severity"],
+        affected_area=ai_result.get("affected_area", ai_result["infection_percentage"]),
+        explanation=ai_result.get("explanation", "Leaf diagnosis computed successfully."),
+        boxes=ai_result.get("boxes", [])
     )
 
 
