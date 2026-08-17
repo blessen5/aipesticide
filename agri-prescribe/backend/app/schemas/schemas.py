@@ -42,11 +42,14 @@ class PlantResponse(PlantBase):
 
 # 4. Image Detection Analysis Schema
 class DetectionAnalyzeResponse(BaseModel):
-    plant_id: Optional[Union[int, str]] = None
     disease: str
     confidence: float
     infection_percentage: float
     severity: str  # HEALTHY, LOW, MODERATE, HIGH
+    affected_area: float
+    explanation: str
+    plant_id: Optional[Union[int, str]] = None
+    boxes: Optional[List[dict]] = None
 
 # 5. Prescription Generator Schemas
 class PrescriptionGenerateRequest(BaseModel):

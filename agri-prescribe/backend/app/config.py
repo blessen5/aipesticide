@@ -21,7 +21,21 @@ class Settings:
     # Directories
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     UPLOADS_DIR: str = os.path.join(BASE_DIR, "uploads")
-    SAMPLE_IMAGES_DIR: str = os.path.join(os.path.dirname(BASE_DIR), "sample_data", "leaf_samples")
+    SAMPLE_IMAGES_DIR: str = os.path.join(BASE_DIR, "uploads", "sample_leaves")
+    
+    # AI / Computer Vision Configuration
+    # AI_MODE: "demo" (offline, deterministic, simulated CV features) or "model" (real PyTorch/ONNX inference)
+    AI_MODE: str = os.getenv("AI_MODE", "demo").lower()
+    MODEL_PATH: str = os.getenv("MODEL_PATH", os.path.join(os.path.dirname(BASE_DIR), "ai", "models", "disease_classifier.onnx"))
+    
+    # Configurable Severity Thresholds
+    # 0 - 5%: HEALTHY
+    # > 5 - 25%: LOW
+    # > 25 - 60%: MODERATE
+    # > 60%: HIGH
+    SEVERITY_HEALTHY_MAX: float = 5.0
+    SEVERITY_LOW_MAX: float = 25.0
+    SEVERITY_MODERATE_MAX: float = 60.0
     
     # Demo configuration
     DEMO_MODE: bool = True
@@ -29,5 +43,6 @@ class Settings:
 
 settings = Settings()
 
-# Ensure uploads directory exists
+# Ensure directories exist
 os.makedirs(settings.UPLOADS_DIR, exist_ok=True)
+os.makedirs(settings.SAMPLE_IMAGES_DIR, exist_ok=True)
