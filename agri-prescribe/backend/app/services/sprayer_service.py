@@ -48,13 +48,17 @@ class SprayerController:
         elif isinstance(plant_id, str) and plant_id.isdigit():
             int_plant_id = int(plant_id)
 
+        # Enforce Safety Rule: Healthy plants or 0 mL volume must NEVER be sprayed
+        if volume_ml <= 0.0:
+            raise ValueError("Invalid spray volume: Spray volume must be greater than 0 mL. Healthy plants must not receive chemical spray.")
+
         # Verify plant if valid integer
         if int_plant_id:
             plant = db.query(Plant).filter(Plant.id == int_plant_id).first()
             if plant:
-                # Update status of plant
-                if plant.status != "HEALTHY":
-                    plant.status = "TREATED"
+                if plant.status.upper() == "HEALTHY" or plant.severity.upper() == "HEALTHY":
+                    raise ValueError(f"Safety restriction: Plant {plant.plant_code} is HEALTHY and cannot receive a spray command.")
+                plant.status = "TREATED"
 
         # Create new SprayEvent
         spray_event = SprayEvent(

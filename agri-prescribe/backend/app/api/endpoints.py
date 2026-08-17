@@ -204,12 +204,14 @@ def generate_prescription(
 ):
     """
     Generate prescription recommendation based on disease, infection percentage, and severity.
+    Stores the prescription record in the database.
     """
     res = prescription_engine.generate(
         severity=req.severity,
         disease=req.disease,
-        infection_pct=req.infection_percentage,
-        plant_id=str(req.plant_id) if req.plant_id is not None else None
+        infection_percentage=req.infection_percentage,
+        crop_type=req.crop_type,
+        plant_id=req.plant_id
     )
 
     int_plant_id: Optional[int] = None
@@ -219,9 +221,10 @@ def generate_prescription(
         except (ValueError, TypeError):
             int_plant_id = None
 
-    # Persist prescription
+    # Persist prescription in database
     presc = Prescription(
         plant_id=int_plant_id,
+        crop_type=res.get("crop_type", "Crop"),
         disease=res["disease"],
         infection_percentage=res["infection_percentage"],
         severity=res["severity"],
@@ -229,6 +232,7 @@ def generate_prescription(
         spray_level=res["spray_level"],
         recommended_volume_ml=res["recommended_volume_ml"],
         priority=res["priority"],
+        reason=res.get("reason", ""),
         created_at=datetime.utcnow()
     )
     db.add(presc)
@@ -236,14 +240,18 @@ def generate_prescription(
     db.refresh(presc)
 
     return PrescriptionGenerateResponse(
+        id=presc.id,
         plant_id=req.plant_id,
+        crop_type=res.get("crop_type"),
         disease=res["disease"],
         infection_percentage=res["infection_percentage"],
         severity=res["severity"],
         recommended_action=res["recommended_action"],
         spray_level=res["spray_level"],
         recommended_volume_ml=res["recommended_volume_ml"],
-        priority=res["priority"]
+        priority=res["priority"],
+        reason=res.get("reason"),
+        disclaimer=res.get("disclaimer")
     )
 
 
@@ -277,6 +285,48 @@ def get_prescriptions_map(db: Session = Depends(get_db)):
         ))
 
     return map_items
+
+
+@router.get("/prescriptions/{plant_id}", response_model=PrescriptionResponse)
+def get_prescription_by_plant_id(plant_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieve latest prescription for a specific plant by its plant_id.
+    """
+    presc = db.query(Prescription).filter(Prescription.plant_id == plant_id).order_by(Prescription.created_at.desc()).first()
+    if not presc:
+        # Check if plant exists
+        plant = db.query(Plant).filter(Plant.id == plant_id).first()
+        if not plant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Prescription not found for plant ID {plant_id}"
+            )
+        # Generate and save prescription for the existing plant
+        res = prescription_engine.generate(
+            severity=plant.severity,
+            disease=plant.disease,
+            infection_percentage=plant.infection_percentage,
+            crop_type=plant.crop_type,
+            plant_id=plant.id
+        )
+        presc = Prescription(
+            plant_id=plant.id,
+            crop_type=plant.crop_type,
+            disease=res["disease"],
+            infection_percentage=res["infection_percentage"],
+            severity=res["severity"],
+            recommended_action=res["recommended_action"],
+            spray_level=res["spray_level"],
+            recommended_volume_ml=res["recommended_volume_ml"],
+            priority=res["priority"],
+            reason=res["reason"],
+            created_at=datetime.utcnow()
+        )
+        db.add(presc)
+        db.commit()
+        db.refresh(presc)
+
+    return presc
 
 
 # ==========================================

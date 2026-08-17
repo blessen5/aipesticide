@@ -186,17 +186,18 @@ def test_detection_analyze_with_synthetic_image(client):
 
 
 # 6. Test Prescription Generation with Dosage Rules
-@pytest.mark.parametrize("severity,expected_vol,expected_level,expected_priority", [
-    ("HEALTHY", 0.0, "NO_TREATMENT", "NONE"),
-    ("LOW", 5.0, "LOW", "LOW"),
-    ("MODERATE", 10.0, "MEDIUM", "MEDIUM"),
-    ("HIGH", 20.0, "HIGH", "HIGH"),
+@pytest.mark.parametrize("severity,expected_vol,expected_action,expected_level,expected_priority", [
+    ("HEALTHY", 0.0, "NO_TREATMENT", "NO_TREATMENT", "NONE"),
+    ("LOW", 5.0, "TARGETED_TREATMENT", "LOW", "LOW"),
+    ("MODERATE", 10.0, "TARGETED_TREATMENT", "MEDIUM", "MEDIUM"),
+    ("HIGH", 20.0, "TARGETED_TREATMENT", "HIGH", "HIGH"),
 ])
-def test_prescription_generation_rules(client, severity, expected_vol, expected_level, expected_priority):
+def test_prescription_generation_rules(client, severity, expected_vol, expected_action, expected_level, expected_priority):
     payload = {
         "plant_id": 1,
-        "disease": "Tomato Early Blight",
-        "infection_percentage": 25.0,
+        "crop_type": "Wheat",
+        "disease": "Leaf Blight" if severity != "HEALTHY" else "Healthy",
+        "infection_percentage": 35.0 if severity != "HEALTHY" else 0.0,
         "severity": severity
     }
     response = client.post("/api/prescriptions/generate", json=payload)
@@ -204,8 +205,28 @@ def test_prescription_generation_rules(client, severity, expected_vol, expected_
     res = response.json()
     assert res["severity"] == severity
     assert res["recommended_volume_ml"] == expected_vol
+    assert res["recommended_action"] == expected_action
     assert res["spray_level"] == expected_level
     assert res["priority"] == expected_priority
+    assert "reason" in res
+    assert "disclaimer" in res
+    assert "id" in res
+
+
+def test_get_prescription_by_plant_id(client):
+    # Fetch seeded plant 2 (infected)
+    response = client.get("/api/prescriptions/2")
+    assert response.status_code == 200
+    presc = response.json()
+    assert presc["plant_id"] == 2
+    assert "disease" in presc
+    assert "recommended_volume_ml" in presc
+    assert "recommended_action" in presc
+
+
+def test_get_prescription_nonexistent_plant(client):
+    response = client.get("/api/prescriptions/99999")
+    assert response.status_code == 404
 
 
 # 7. Test Prescription Map Endpoint

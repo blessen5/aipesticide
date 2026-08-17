@@ -147,12 +147,14 @@ def seed_demo_data(db: Session, force_reseed: bool = False):
         prescription_data = prescription_engine.generate(
             severity=p.severity,
             disease=p.disease,
-            infection_pct=p.infection_percentage,
-            plant_id=str(p.id)
+            infection_percentage=p.infection_percentage,
+            crop_type=p.crop_type,
+            plant_id=p.id
         )
 
         presc = Prescription(
             plant_id=p.id,
+            crop_type=p.crop_type,
             disease=prescription_data["disease"],
             infection_percentage=prescription_data["infection_percentage"],
             severity=prescription_data["severity"],
@@ -160,6 +162,7 @@ def seed_demo_data(db: Session, force_reseed: bool = False):
             spray_level=prescription_data["spray_level"],
             recommended_volume_ml=prescription_data["recommended_volume_ml"],
             priority=prescription_data["priority"],
+            reason=prescription_data.get("reason", ""),
             created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24))
         )
         db.add(presc)

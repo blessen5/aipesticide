@@ -54,12 +54,14 @@ class DetectionAnalyzeResponse(BaseModel):
 # 5. Prescription Generator Schemas
 class PrescriptionGenerateRequest(BaseModel):
     plant_id: Optional[Union[int, str]] = None
+    crop_type: Optional[str] = "Crop"
     disease: str
-    infection_percentage: float
+    infection_percentage: float = 0.0
     severity: str  # HEALTHY, LOW, MODERATE, HIGH
 
 class PrescriptionGenerateResponse(BaseModel):
     plant_id: Optional[Union[int, str]] = None
+    crop_type: Optional[str] = None
     disease: str
     infection_percentage: float
     severity: str
@@ -67,6 +69,9 @@ class PrescriptionGenerateResponse(BaseModel):
     spray_level: str  # NO_TREATMENT, LOW, MEDIUM, HIGH
     recommended_volume_ml: float
     priority: str  # NONE, LOW, MEDIUM, HIGH
+    reason: Optional[str] = None
+    disclaimer: Optional[str] = None
+    id: Optional[int] = None
 
 # 6. Prescription Map Item Schema
 class PrescriptionMapItem(BaseModel):
@@ -102,6 +107,7 @@ class SprayerSprayResponse(BaseModel):
 class PrescriptionResponse(BaseModel):
     id: int
     plant_id: Optional[int] = None
+    crop_type: Optional[str] = None
     disease: str
     infection_percentage: float
     severity: str
@@ -109,6 +115,7 @@ class PrescriptionResponse(BaseModel):
     spray_level: str
     recommended_volume_ml: float
     priority: str
+    reason: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 

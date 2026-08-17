@@ -68,13 +68,15 @@ class Prescription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True)
+    crop_type = Column(String(50), nullable=True, default="Generic Crop")
     disease = Column(String(100), nullable=False)
     infection_percentage = Column(Float, default=0.0)
     severity = Column(String(20), default="HEALTHY")
-    recommended_action = Column(Text, nullable=False)
+    recommended_action = Column(String(100), default="NO_TREATMENT")  # NO_TREATMENT, TARGETED_TREATMENT
     spray_level = Column(String(50), default="NO_TREATMENT")  # NO_TREATMENT, LOW, MEDIUM, HIGH
     recommended_volume_ml = Column(Float, default=0.0)
     priority = Column(String(50), default="NONE")  # NONE, LOW, MEDIUM, HIGH
+    reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     plant = relationship("Plant", back_populates="prescriptions")
