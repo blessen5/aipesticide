@@ -27,6 +27,7 @@ export const ScanPlant: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Field & Zone Selection State
   const [fields, setFields] = useState<Field[]>([]);
@@ -125,36 +126,86 @@ export const ScanPlant: React.FC = () => {
     loadZones(newFieldId);
   };
 
+  // Clean up camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   // Camera Management
   const startCamera = async () => {
     setError(null);
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: cameraFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
-        setIsCameraActive(true);
-      } else {
-        // Fallback: mobile browsers block getUserMedia on HTTP, so we use a native HTML file input with capture="environment"
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         const fallback = document.getElementById('cameraFallbackInput');
         if (fallback) fallback.click();
-        else setError('Camera API not supported on this device/browser.');
+        else setError('Camera API is not supported on this device/browser.');
+        return;
+      }
+
+      // Stop any existing stream before starting a new one
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      let stream: MediaStream | null = null;
+
+      // 1. Try ideal constraints first
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: cameraFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (constraintErr) {
+        console.warn('Ideal camera constraints failed, falling back to basic video:', constraintErr);
+        // 2. Fallback to basic video constraint (works on desktop laptops & external webcams)
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
+
+      if (stream) {
+        streamRef.current = stream;
+        setIsCameraActive(true);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((playErr) => {
+            console.warn('Auto-play blocked or delayed:', playErr);
+          });
+        }
       }
     } catch (err: any) {
       console.error('Camera access error:', err);
-      setError('Camera access unavailable. Please choose an image upload or demo preset.');
       setIsCameraActive(false);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setError('Camera permission was denied. Please allow camera permissions in your browser address bar.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setError('No camera detected on this system. You can upload an image or pick a demo leaf preset.');
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setError('Camera hardware is currently in use by another application.');
+      } else {
+        setError(`Unable to access camera: ${err.message || 'Check browser permissions'}.`);
+      }
     }
   };
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
@@ -177,7 +228,7 @@ export const ScanPlant: React.FC = () => {
             stopCamera();
             resetDiagnosis();
           }
-        }, 'image/jpeg', 0.9);
+        }, 'image/jpeg', 0.92);
       }
     }
   };
@@ -185,7 +236,7 @@ export const ScanPlant: React.FC = () => {
   const toggleCameraFacingMode = () => {
     stopCamera();
     setCameraFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
-    setTimeout(startCamera, 300);
+    setTimeout(startCamera, 200);
   };
 
   // File Upload Handlers
@@ -497,7 +548,13 @@ export const ScanPlant: React.FC = () => {
         {isCameraActive ? (
           <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-emerald-500/50 shadow-2xl aspect-[4/3] flex items-center justify-center">
             <video
-              ref={videoRef}
+              ref={(el) => {
+                videoRef.current = el;
+                if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                  el.srcObject = streamRef.current;
+                  el.play().catch((e) => console.warn('Video play blocked:', e));
+                }
+              }}
               playsInline
               autoPlay
               muted
