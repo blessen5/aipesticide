@@ -1,6 +1,6 @@
 export type SeverityLevel = 'HEALTHY' | 'LOW' | 'MODERATE' | 'HIGH';
 export type PriorityLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
-export type RecommendedAction = 'NO_TREATMENT' | 'TARGETED_TREATMENT';
+export type RecommendedAction = 'NO_TREATMENT' | 'TARGETED_TREATMENT' | 'MONITOR' | 'INSPECT_ZONE' | 'IRRIGATION' | 'APPROVED_APPLICATION';
 export type SprayLevel = 'NO_TREATMENT' | 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface Field {
@@ -11,6 +11,32 @@ export interface Field {
   latitude: number;
   longitude: number;
   created_at: string;
+}
+
+export interface Zone {
+  id: number;
+  field_id: number;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  crop?: string;
+  crop_stage?: string;
+  irrigation_method?: string;
+  nozzle_type?: string;
+  status: string;
+  created_at: string;
+}
+
+export interface ZoneCreateInput {
+  field_id: number;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  crop?: string;
+  crop_stage?: string;
+  irrigation_method?: string;
+  nozzle_type?: string;
+  status?: string;
 }
 
 export interface Plant {
@@ -42,6 +68,7 @@ export interface PlantCreateInput {
 export interface Detection {
   id: number;
   plant_id?: number;
+  zone_id?: number;
   image_url: string;
   disease: string;
   confidence: number;
@@ -52,6 +79,7 @@ export interface Detection {
 
 export interface DetectionAnalyzeResponse {
   plant_id?: number | string;
+  zone_id?: number | string;
   disease: string;
   confidence: number;
   infection_percentage: number;
@@ -70,6 +98,7 @@ export interface DetectionAnalyzeResponse {
 export interface Prescription {
   id: number;
   plant_id?: number;
+  zone_id?: number;
   crop_type?: string;
   disease: string;
   infection_percentage: number;
@@ -80,11 +109,17 @@ export interface Prescription {
   priority: string;
   reason?: string;
   created_at: string;
+  application_mode?: string;
+  application_method_status?: string;
+  hardware_node_id?: string;
+  valve_id?: string;
+  nozzle_id?: string;
 }
 
 export interface PrescriptionGenerateResponse {
   id?: number;
   plant_id?: number | string;
+  zone_id?: number | string;
   crop_type?: string;
   disease: string;
   infection_percentage: number;
@@ -95,11 +130,17 @@ export interface PrescriptionGenerateResponse {
   priority: string;
   reason?: string;
   disclaimer?: string;
+  application_mode?: string;
+  application_method_status?: string;
+  hardware_node_id?: string;
+  valve_id?: string;
+  nozzle_id?: string;
 }
 
 export interface PrescriptionMapFeatureProperties {
-  plant_id: number | string;
-  plant_code: string;
+  zone_id?: number | string;
+  plant_id?: number | string;
+  plant_code?: string;
   disease: string;
   severity: SeverityLevel;
   infection_percentage: number;
@@ -154,7 +195,8 @@ export interface SprayerStatus {
 }
 
 export interface ExecutionStepLog {
-  plant_code: string;
+  plant_code?: string;
+  zone_id?: number | string;
   action: string;
   volume_ml: number;
   severity: string;
@@ -177,6 +219,7 @@ export interface SprayEvent {
   id: number;
   command_id: string;
   plant_id?: number;
+  zone_id?: number;
   volume_ml: number;
   status: string;
   mode: string;

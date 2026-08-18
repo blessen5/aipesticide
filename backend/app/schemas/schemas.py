@@ -23,7 +23,27 @@ class FieldResponse(FieldBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-# 3. Plant Schemas
+# 2.5 Zone Schemas
+class ZoneBase(BaseModel):
+    name: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    crop: Optional[str] = None
+    crop_stage: Optional[str] = None
+    irrigation_method: Optional[str] = None
+    nozzle_type: Optional[str] = None
+    status: str = "READY"
+
+class ZoneCreate(ZoneBase):
+    field_id: int
+
+class ZoneResponse(ZoneBase):
+    id: int
+    field_id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# 3. Plant Schemas (Retained for backward compatibility)
 class PlantBase(BaseModel):
     plant_code: str
     latitude: float
@@ -52,11 +72,13 @@ class DetectionAnalyzeResponse(BaseModel):
     affected_area: float
     explanation: str
     plant_id: Optional[Union[int, str]] = None
+    zone_id: Optional[Union[int, str]] = None
     boxes: Optional[List[dict]] = None
 
 # 5. Prescription Generator Schemas
 class PrescriptionGenerateRequest(BaseModel):
     plant_id: Optional[Union[int, str]] = None
+    zone_id: Optional[Union[int, str]] = None
     crop_type: Optional[str] = "Crop"
     disease: str
     infection_percentage: float = 0.0
@@ -64,6 +86,7 @@ class PrescriptionGenerateRequest(BaseModel):
 
 class PrescriptionGenerateResponse(BaseModel):
     plant_id: Optional[Union[int, str]] = None
+    zone_id: Optional[Union[int, str]] = None
     crop_type: Optional[str] = None
     disease: str
     infection_percentage: float
@@ -75,6 +98,11 @@ class PrescriptionGenerateResponse(BaseModel):
     reason: Optional[str] = None
     disclaimer: Optional[str] = None
     id: Optional[int] = None
+    application_mode: Optional[str] = None
+    application_method_status: Optional[str] = None
+    hardware_node_id: Optional[str] = None
+    valve_id: Optional[str] = None
+    nozzle_id: Optional[str] = None
 
 # 6. GeoJSON Prescription Map Schemas
 class GeoJSONPointGeometry(BaseModel):
@@ -82,8 +110,9 @@ class GeoJSONPointGeometry(BaseModel):
     coordinates: List[float]  # [longitude, latitude] as per GeoJSON RFC 7946
 
 class PrescriptionMapFeatureProperties(BaseModel):
-    plant_id: Union[int, str]
-    plant_code: str
+    zone_id: Optional[Union[int, str]] = None
+    plant_id: Optional[Union[int, str]] = None
+    plant_code: Optional[str] = None
     disease: str
     severity: str
     infection_percentage: float
@@ -117,7 +146,8 @@ class FieldPrescriptionMapResponse(BaseModel):
     summary: FieldPrescriptionSummary
 
 class PrescriptionMapItem(BaseModel):
-    plant_id: Union[int, str]
+    zone_id: Optional[Union[int, str]] = None
+    plant_id: Optional[Union[int, str]] = None
     plant_code: Optional[str] = None
     latitude: float
     longitude: float
@@ -151,14 +181,16 @@ class SprayerStopResponse(BaseModel):
     message: str
 
 class SprayerSprayRequest(BaseModel):
-    plant_id: Union[int, str]
+    plant_id: Optional[Union[int, str]] = None
+    zone_id: Optional[Union[int, str]] = None
     volume_ml: float
     mode: Optional[str] = "SIMULATED"
 
 class SprayerSprayResponse(BaseModel):
     command_id: str
     status: str
-    plant_id: Union[int, str]
+    plant_id: Optional[Union[int, str]] = None
+    zone_id: Optional[Union[int, str]] = None
     volume_ml: float
     timestamp: str
     mode: str = "SIMULATED"
@@ -168,7 +200,8 @@ class ExecutePrescriptionRequest(BaseModel):
     mode: Optional[str] = "SIMULATED"
 
 class ExecutionStepLog(BaseModel):
-    plant_code: str
+    plant_code: Optional[str] = None
+    zone_id: Optional[Union[int, str]] = None
     action: str  # MOVING, READY, SPRAYING, SKIPPED, COMPLETED
     volume_ml: float
     severity: str
@@ -189,6 +222,7 @@ class ExecutePrescriptionResponse(BaseModel):
 class PrescriptionResponse(BaseModel):
     id: int
     plant_id: Optional[int] = None
+    zone_id: Optional[int] = None
     crop_type: Optional[str] = None
     disease: str
     infection_percentage: float
@@ -199,6 +233,13 @@ class PrescriptionResponse(BaseModel):
     priority: str
     reason: Optional[str] = None
     created_at: datetime
+    
+    application_mode: Optional[str] = None
+    application_method_status: Optional[str] = None
+    hardware_node_id: Optional[str] = None
+    valve_id: Optional[str] = None
+    nozzle_id: Optional[str] = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 # 9. Spray History Log Schema
@@ -206,6 +247,7 @@ class SprayEventResponse(BaseModel):
     id: int
     command_id: str
     plant_id: Optional[int] = None
+    zone_id: Optional[int] = None
     volume_ml: float
     status: str
     mode: str
@@ -229,4 +271,57 @@ class DemoSeedResponse(BaseModel):
     message: str
     fields_count: int
     plants_count: int
+    zones_count: int
     prescriptions_count: int
+
+# 12. Storage Registry & Product Schemas
+class TreatmentProductBase(BaseModel):
+    product_id: str
+    product_name: str
+    active_ingredient: str
+    crop: str
+    target: str
+    registered_application_method: str
+    label_verified: bool = False
+    chemigation_permitted: bool = False
+    expiry_date: Optional[datetime] = None
+    batch_number: str
+    storage_location: str
+    enabled: bool = True
+    notes: Optional[str] = None
+
+class TreatmentProductCreate(TreatmentProductBase):
+    pass
+
+class TreatmentProductResponse(TreatmentProductBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class StorageRecordBase(BaseModel):
+    product_id: int
+    quantity: float
+    unit: str
+
+class StorageRecordCreate(StorageRecordBase):
+    pass
+
+class StorageRecordResponse(StorageRecordBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+# 13. Audit Log Schemas
+class AuditLogBase(BaseModel):
+    user: Optional[str] = None
+    field: Optional[str] = None
+    zone: Optional[str] = None
+    action: str
+    result: Optional[str] = None
+    reason: Optional[str] = None
+
+class AuditLogCreate(AuditLogBase):
+    pass
+
+class AuditLogResponse(AuditLogBase):
+    id: int
+    timestamp: datetime
+    model_config = ConfigDict(from_attributes=True)

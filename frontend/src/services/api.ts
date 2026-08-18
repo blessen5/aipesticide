@@ -8,10 +8,29 @@ import {
   SprayerStatus,
   SprayEvent,
   AnalyticsSummary,
-  ExecutePrescriptionResponse
+  ExecutePrescriptionResponse,
+  Zone
 } from '../types';
 
 const API_BASE = '/api';
+
+// Offline caching utility
+const offlineGet = async <T>(url: string, cacheKey: string): Promise<T> => {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Network response was not ok');
+    const data = await res.json();
+    localStorage.setItem(cacheKey, JSON.stringify(data));
+    return data;
+  } catch (err) {
+    console.warn(`Network fetch failed for ${url}, falling back to cache.`);
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    throw err;
+  }
+};
 
 export const api = {
   // 1. Health check
@@ -30,9 +49,12 @@ export const api = {
 
   // 3. Fields
   getFields: async (): Promise<Field[]> => {
-    const res = await fetch(`${API_BASE}/fields`);
-    if (!res.ok) throw new Error('Failed to fetch agricultural fields');
-    return res.json();
+    return offlineGet<Field[]>(`${API_BASE}/fields`, 'cache_fields');
+  },
+
+  getZones: async (fieldId?: number): Promise<Zone[]> => {
+    const url = fieldId ? `${API_BASE}/zones?field_id=${fieldId}` : `${API_BASE}/zones`;
+    return offlineGet<Zone[]>(url, `cache_zones_${fieldId || 'all'}`);
   },
 
   // 4. Plants
@@ -112,9 +134,7 @@ export const api = {
 
   // 10. Sprayer Status
   getSprayerStatus: async (): Promise<SprayerStatus> => {
-    const res = await fetch(`${API_BASE}/sprayer/status`);
-    if (!res.ok) throw new Error('Failed to fetch sprayer telemetry');
-    return res.json();
+    return offlineGet<SprayerStatus>(`${API_BASE}/sprayer/status`, 'cache_sprayer_status');
   },
 
   // 11. Start Sprayer
@@ -181,5 +201,15 @@ export const api = {
     const res = await fetch(`${API_BASE}/demo/reset`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset demo dataset');
     return res.json();
+  },
+
+  // 17. Storage Registry / Products
+  getProducts: async (): Promise<any[]> => {
+    return offlineGet<any[]>(`${API_BASE}/products`, 'cache_products');
+  },
+
+  // 18. Audit History
+  getAuditLogs: async (): Promise<any[]> => {
+    return offlineGet<any[]>(`${API_BASE}/audit`, 'cache_audit');
   }
 };

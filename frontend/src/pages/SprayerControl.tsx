@@ -22,24 +22,24 @@ import {
   Terminal
 } from 'lucide-react';
 import { api } from '../services/api';
-import { SprayerStatus, Plant, SprayEvent, Field, ExecutionStepLog, ExecutePrescriptionResponse } from '../types';
+import { SprayerStatus, Zone, SprayEvent, Field, ExecutionStepLog, ExecutePrescriptionResponse } from '../types';
 
 export const SprayerControl: React.FC = () => {
   const [status, setStatus] = useState<SprayerStatus | null>(null);
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<number>(1);
-  const [plants, setPlants] = useState<Plant[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [recentEvents, setRecentEvents] = useState<SprayEvent[]>([]);
   
   // Single Spray Form State
-  const [selectedPlantId, setSelectedPlantId] = useState<number | string>('');
+  const [selectedZoneId, setSelectedZoneId] = useState<number | string>('');
   const [volumeMl, setVolumeMl] = useState<number>(10.0);
   const [isSingleSpraying, setIsSingleSpraying] = useState<boolean>(false);
 
   // Automated Field Mission Simulation State
   const [isMissionRunning, setIsMissionRunning] = useState<boolean>(false);
   const [missionLogs, setMissionLogs] = useState<ExecutionStepLog[]>([]);
-  const [currentMissionPlant, setCurrentMissionPlant] = useState<string>('IDLE');
+  const [currentMissionZone, setCurrentMissionZone] = useState<string>('IDLE');
   const [currentMissionStatus, setCurrentMissionStatus] = useState<string>('IDLE');
   const [currentMissionVolume, setCurrentMissionVolume] = useState<number>(0.0);
   const [missionProgress, setMissionProgress] = useState<number>(0);
@@ -51,25 +51,20 @@ export const SprayerControl: React.FC = () => {
 
   const loadSprayerData = async () => {
     try {
-      const [statusRes, fieldsRes, plantsRes, historyRes] = await Promise.all([
+      const [statusRes, fieldsRes, zonesRes, historyRes] = await Promise.all([
         api.getSprayerStatus(),
         api.getFields(),
-        api.getPlants(selectedFieldId),
+        api.getZones(selectedFieldId),
         api.getSprayHistory()
       ]);
       setStatus(statusRes);
       setFields(fieldsRes);
-      setPlants(plantsRes);
+      setZones(zonesRes);
       setRecentEvents(historyRes);
       
-      if (plantsRes.length > 0 && !selectedPlantId) {
-        const infected = plantsRes.find(p => p.severity !== 'HEALTHY');
-        if (infected) {
-          setSelectedPlantId(infected.id);
-          setVolumeMl(infected.severity === 'HIGH' ? 20.0 : infected.severity === 'MODERATE' ? 10.0 : 5.0);
-        } else {
-          setSelectedPlantId(plantsRes[0].id);
-        }
+      if (zonesRes.length > 0 && !selectedZoneId) {
+        setSelectedZoneId(zonesRes[0].id);
+        setVolumeMl(10.0);
       }
     } catch (err) {
       console.error('Failed to load sprayer telemetry:', err);
@@ -98,24 +93,21 @@ export const SprayerControl: React.FC = () => {
   const handleFieldChange = async (newFieldId: number) => {
     setSelectedFieldId(newFieldId);
     try {
-      const plantsRes = await api.getPlants(newFieldId);
-      setPlants(plantsRes);
-      if (plantsRes.length > 0) {
-        setSelectedPlantId(plantsRes[0].id);
+      const zonesRes = await api.getZones(newFieldId);
+      setZones(zonesRes);
+      if (zonesRes.length > 0) {
+        setSelectedZoneId(zonesRes[0].id);
       }
     } catch (err) {
-      console.error('Error loading plants for field:', err);
+      console.error('Error loading zones for field:', err);
     }
   };
 
-  const handlePlantSelectionChange = (plantIdStr: string) => {
-    setSelectedPlantId(plantIdStr);
-    const plant = plants.find(p => String(p.id) === plantIdStr);
-    if (plant) {
-      if (plant.severity === 'HIGH') setVolumeMl(20.0);
-      else if (plant.severity === 'MODERATE') setVolumeMl(10.0);
-      else if (plant.severity === 'LOW') setVolumeMl(5.0);
-      else setVolumeMl(0.0);
+  const handleZoneSelectionChange = (zoneIdStr: string) => {
+    setSelectedZoneId(zoneIdStr);
+    const zone = zones.find(z => String(z.id) === zoneIdStr);
+    if (zone) {
+      setVolumeMl(10.0); // Default volume for zone
     }
   };
 
@@ -158,7 +150,7 @@ export const SprayerControl: React.FC = () => {
       
       for (let i = 0; i < totalSteps; i++) {
         const log = result.execution_logs[i];
-        setCurrentMissionPlant(log.plant_code);
+        setCurrentMissionZone(log.zone_id ? String(log.zone_id) : 'UNKNOWN');
         setCurrentMissionStatus(log.action);
         setCurrentMissionVolume(log.volume_ml);
         setMissionProgress(Math.round(((i + 1) / totalSteps) * 100));
@@ -172,7 +164,7 @@ export const SprayerControl: React.FC = () => {
       setMissionSummary(result);
       setFeedbackMsg({
         type: 'success',
-        text: `Prescription mission finished! ${result.plants_treated} plants spot-treated (${result.total_volume_sprayed} mL), ${result.plants_skipped_healthy} healthy crops safely skipped.`
+        text: `Prescription mission finished! ${result.plants_treated} zones/plants spot-treated (${result.total_volume_sprayed} mL).`
       });
 
       // Reload fresh events & telemetry
@@ -192,16 +184,15 @@ export const SprayerControl: React.FC = () => {
 
   // Single Spot Spray Trigger
   const handleTriggerSingleSpray = async () => {
-    if (!selectedPlantId) {
-      setFeedbackMsg({ type: 'error', text: 'Please select a target plant.' });
+    if (!selectedZoneId) {
+      setFeedbackMsg({ type: 'error', text: 'Please select a target zone.' });
       return;
     }
 
-    const targetPlant = plants.find(p => String(p.id) === String(selectedPlantId));
-    if (targetPlant && (targetPlant.severity === 'HEALTHY' || volumeMl <= 0)) {
+    if (volumeMl <= 0) {
       setFeedbackMsg({
         type: 'error',
-        text: 'Safety Lock Enforced: Target crop is HEALTHY. Chemical spot spraying is prohibited (0 mL).'
+        text: 'Volume must be greater than 0 mL.'
       });
       return;
     }
@@ -210,7 +201,7 @@ export const SprayerControl: React.FC = () => {
     setFeedbackMsg(null);
 
     try {
-      const res = await api.triggerSpray(selectedPlantId, volumeMl, 'SIMULATED');
+      const res = await api.triggerSpray(selectedZoneId, volumeMl, 'SIMULATED');
       setFeedbackMsg({
         type: 'success',
         text: `Spot Spray command [${res.command_id}] executed successfully! Dispensed ${res.volume_ml} mL.`
@@ -228,7 +219,7 @@ export const SprayerControl: React.FC = () => {
 
   const totalSprayedMl = recentEvents.reduce((acc, ev) => acc + (ev.volume_ml || 0), 0);
   const selectedField = fields.find(f => f.id === selectedFieldId);
-  const selectedPlant = plants.find(p => String(p.id) === String(selectedPlantId));
+  const selectedZone = zones.find(z => String(z.id) === String(selectedZoneId));
 
   const activeSprayerState = isMissionRunning ? currentMissionStatus : (status?.status || 'READY');
 
@@ -252,10 +243,10 @@ export const SprayerControl: React.FC = () => {
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center space-x-2.5">
             <Radio className="w-6 h-6 text-emerald-400" />
-            <span>Automated Sprayer Simulation</span>
+            <span>Hardware & Water Mode Prototype</span>
           </h1>
           <p className="text-slate-400 text-xs sm:text-sm">
-            Prescription Map → Navigation → Verification → Targeted Solenoid Spraying → Auditable Event Logging.
+            Zone-based Prescriptions → Hardware Valve Actuation → Auditable Event Logging.
           </p>
         </div>
 
@@ -272,12 +263,12 @@ export const SprayerControl: React.FC = () => {
             {activeSprayerState === 'IDLE' ? (
               <>
                 <Play className="w-4 h-4 fill-current" />
-                <span>START SPRAYER</span>
+                <span>START SYSTEM</span>
               </>
             ) : (
               <>
                 <Square className="w-4 h-4" />
-                <span>STOP SPRAYER</span>
+                <span>STOP SYSTEM</span>
               </>
             )}
           </button>
@@ -294,16 +285,16 @@ export const SprayerControl: React.FC = () => {
 
       {/* Safety Notice & SIMULATION MODE Disclaimer */}
       <div className="p-4 sm:p-5 rounded-3xl bg-slate-900/90 border border-emerald-500/30 flex items-start space-x-3 text-xs text-slate-300 shadow-xl">
-        <ShieldAlert className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+        <Droplet className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 text-[10px]">
-              SIMULATION MODE
+            <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 font-bold border border-sky-500/30 text-[10px]">
+              WATER MODE PROTOTYPE
             </span>
             <p className="font-bold text-white">SIH 2026 Evaluation Safety Lock Active</p>
           </div>
           <p className="text-slate-400 leading-relaxed">
-            This module demonstrates an autonomous precision sprayer state machine running 100% locally. In accordance with safety guidelines, healthy plants are strictly locked against receiving chemical spray commands. Clean hardware integration interface is exposed for pluggable ESP32 physical actuator control.
+            This module demonstrates an autonomous precision sprayer state machine mapping zones to hardware valves. In accordance with safety guidelines, the prototype operates strictly in WATER ONLY mode. Clean hardware integration interface is exposed for pluggable ESP32 physical actuator control.
           </p>
         </div>
       </div>
@@ -335,7 +326,7 @@ export const SprayerControl: React.FC = () => {
           <div>
             <div className="flex items-center space-x-2">
               <Compass className="w-5 h-5 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
-              <h3 className="text-lg font-bold text-white">Autonomous Sprayer State Visualizer</h3>
+              <h3 className="text-lg font-bold text-white">Hardware Dashboard Visualizer</h3>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">Real-time chassis telemetry and solenoid actuation</p>
           </div>
@@ -371,15 +362,15 @@ export const SprayerControl: React.FC = () => {
                 ? 'bg-amber-500/20 border-amber-400 text-amber-300 translate-x-2 shadow-xl shadow-amber-500/20'
                 : 'bg-slate-950 border-slate-700 text-slate-400'
             }`}>
-              <Radio className={`w-12 h-12 ${activeSprayerState === 'SPRAYING' ? 'animate-pulse text-emerald-400' : ''}`} />
+              <Cpu className={`w-12 h-12 ${activeSprayerState === 'SPRAYING' ? 'animate-pulse text-emerald-400' : ''}`} />
             </div>
 
             {/* Spray Particle Effect Visualization */}
             {activeSprayerState === 'SPRAYING' && (
               <div className="absolute -bottom-4 inset-x-0 flex justify-center space-x-1 animate-bounce">
-                <div className="w-1.5 h-3 bg-emerald-400 rounded-full animate-ping" />
-                <div className="w-1.5 h-4 bg-green-300 rounded-full animate-ping delay-75" />
-                <div className="w-1.5 h-3 bg-emerald-400 rounded-full animate-ping delay-150" />
+                <div className="w-1.5 h-3 bg-sky-400 rounded-full animate-ping" />
+                <div className="w-1.5 h-4 bg-sky-300 rounded-full animate-ping delay-75" />
+                <div className="w-1.5 h-3 bg-sky-400 rounded-full animate-ping delay-150" />
               </div>
             )}
           </div>
@@ -387,13 +378,13 @@ export const SprayerControl: React.FC = () => {
           {/* Current Target Readout */}
           <div className="text-center space-y-1">
             <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-              {isMissionRunning ? 'Active Traversal Target' : 'Target Crop'}
+              {isMissionRunning ? 'Active Traversal Target' : 'Target Zone'}
             </p>
             <h4 className="text-xl font-extrabold text-white">
-              {isMissionRunning ? currentMissionPlant : (selectedPlant?.plant_code || 'P-001')}
+              {isMissionRunning ? currentMissionZone : (selectedZone?.name || 'Z-001')}
             </h4>
             <div className="inline-flex items-center space-x-2 text-xs font-mono">
-              <span className="text-slate-400">Prescription Flow:</span>
+              <span className="text-slate-400">Target Volume:</span>
               <strong className="text-emerald-400 font-extrabold">
                 {isMissionRunning ? currentMissionVolume : volumeMl} mL
               </strong>
@@ -422,30 +413,30 @@ export const SprayerControl: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           
           <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-            <span className="text-[11px] text-slate-400">Chemical Fluid Tank</span>
-            <div className="text-lg font-black text-emerald-400">{status?.fluid_level_pct || 90}%</div>
+            <span className="text-[11px] text-slate-400">Water Fluid Tank</span>
+            <div className="text-lg font-black text-sky-400">{status?.fluid_level_pct || 90}%</div>
             <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-              <div className="bg-emerald-400 h-full" style={{ width: `${status?.fluid_level_pct || 90}%` }} />
+              <div className="bg-sky-400 h-full" style={{ width: `${status?.fluid_level_pct || 90}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-            <span className="text-[11px] text-slate-400">Li-Po Battery Level</span>
-            <div className="text-lg font-black text-sky-400">{status?.battery_level || 95}%</div>
+            <span className="text-[11px] text-slate-400">Node Battery Level</span>
+            <div className="text-lg font-black text-emerald-400">{status?.battery_level || 95}%</div>
             <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-              <div className="bg-sky-400 h-full" style={{ width: `${status?.battery_level || 95}%` }} />
+              <div className="bg-emerald-400 h-full" style={{ width: `${status?.battery_level || 95}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-            <span className="text-[11px] text-slate-400">Total Field Crops</span>
-            <div className="text-lg font-black text-white">{plants.length} Plants</div>
+            <span className="text-[11px] text-slate-400">Total Field Zones</span>
+            <div className="text-lg font-black text-white">{zones.length} Zones</div>
             <p className="text-[10px] text-slate-500">{selectedField?.name || 'Field'}</p>
           </div>
 
           <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-            <span className="text-[11px] text-slate-400">Total Volume Sprayed</span>
-            <div className="text-lg font-black text-emerald-400">{totalSprayedMl.toFixed(1)} mL</div>
+            <span className="text-[11px] text-slate-400">Total Volume Dispensed</span>
+            <div className="text-lg font-black text-sky-400">{totalSprayedMl.toFixed(1)} mL</div>
             <p className="text-[10px] text-slate-500">{recentEvents.length} commands logged</p>
           </div>
 
@@ -466,7 +457,7 @@ export const SprayerControl: React.FC = () => {
               <span>Automated Field Prescription Execution</span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Traverses all plants in the field, skips healthy plants, and executes calibrated pulse spot spraying.
+              Traverses all zones in the field and executes calibrated water pulse spraying.
             </p>
           </div>
 
@@ -506,7 +497,7 @@ export const SprayerControl: React.FC = () => {
           ) : (
             <>
               <Play className="w-6 h-6 fill-current text-slate-950" />
-              <span>START DEMO SPRAYING (FIELD #{selectedFieldId})</span>
+              <span>START DEMO SYSTEM (FIELD #{selectedFieldId})</span>
             </>
           )}
         </button>
@@ -517,7 +508,7 @@ export const SprayerControl: React.FC = () => {
             <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
               <span className="flex items-center space-x-1.5">
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                <span>Autonomous Sprayer Telemetry Console:</span>
+                <span>Hardware Node Telemetry Console:</span>
               </span>
               <span>{missionLogs.length} Steps Recorded</span>
             </div>
@@ -551,26 +542,26 @@ export const SprayerControl: React.FC = () => {
         <div className="border-b border-slate-800 pb-3">
           <h3 className="text-lg font-bold text-white flex items-center space-x-2">
             <Send className="w-5 h-5 text-emerald-400" />
-            <span>Single Plant Targeted Spot Spray</span>
+            <span>Single Zone Targeted Valve Test</span>
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Test individual solenoid discharge on a selected plant.
+            Test individual solenoid discharge on a selected zone.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          {/* Target Plant Selector */}
+          {/* Target Zone Selector */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300">Target Crop Plant:</label>
+            <label className="text-xs font-semibold text-slate-300">Target Zone:</label>
             <select
-              value={selectedPlantId}
-              onChange={(e) => handlePlantSelectionChange(e.target.value)}
+              value={selectedZoneId}
+              onChange={(e) => handleZoneSelectionChange(e.target.value)}
               className="w-full p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-emerald-500 transition"
             >
-              {plants.map((p) => (
-                <option key={p.id} value={p.id}>
-                  [{p.plant_code}] {p.crop_type} • {p.disease} • Severity: {p.severity} ({p.infection_percentage}%)
+              {zones.map((z) => (
+                <option key={z.id} value={z.id}>
+                  [{z.id}] {z.name}
                 </option>
               ))}
             </select>
@@ -579,8 +570,8 @@ export const SprayerControl: React.FC = () => {
           {/* Dosage Volume Slider */}
           <div className="space-y-2">
             <div className="flex justify-between text-xs">
-              <label className="font-semibold text-slate-300">Prescription Spray Dosage (mL):</label>
-              <span className="font-extrabold text-emerald-400 text-sm">{volumeMl} mL</span>
+              <label className="font-semibold text-slate-300">Water Dosage (mL):</label>
+              <span className="font-extrabold text-sky-400 text-sm">{volumeMl} mL</span>
             </div>
             <input
               type="range"
@@ -589,14 +580,8 @@ export const SprayerControl: React.FC = () => {
               step="2.5"
               value={volumeMl}
               onChange={(e) => setVolumeMl(Number(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
             />
-            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>0 mL (Healthy)</span>
-              <span>5 mL (Low)</span>
-              <span>10 mL (Moderate)</span>
-              <span>20 mL (High)</span>
-            </div>
           </div>
 
         </div>
@@ -618,7 +603,7 @@ export const SprayerControl: React.FC = () => {
           ) : (
             <>
               <Radio className="w-5 h-5" />
-              <span>Trigger Spot Spray ({volumeMl} mL)</span>
+              <span>Trigger Valve Test ({volumeMl} mL)</span>
             </>
           )}
         </button>

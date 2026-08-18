@@ -12,7 +12,9 @@ import {
   Sparkles,
   Wifi,
   WifiOff,
-  Target
+  Target,
+  ShieldAlert,
+  FlaskConical
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -56,6 +58,8 @@ export const Navbar: React.FC = () => {
     { path: '/map', label: 'Prescription Map', icon: MapPin },
     { path: '/sprayer', label: 'Sprayer', icon: Radio },
     { path: '/history', label: 'History', icon: History },
+    { path: '/audit', label: 'Audit', icon: ShieldAlert },
+    { path: '/storage', label: 'Storage', icon: FlaskConical },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   ];
 

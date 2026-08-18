@@ -116,11 +116,11 @@ export const PrescriptionMap: React.FC = () => {
       return;
     }
 
-    setSprayingPlantId(props.plant_id);
+    setSprayingPlantId(props.plant_id || null);
     setSprayMessage(null);
 
     try {
-      const res = await api.triggerSpray(props.plant_id, props.recommended_volume_ml, 'SIMULATED');
+      const res = await api.triggerSpray(props.plant_id || '', props.recommended_volume_ml, 'SIMULATED');
       setSprayMessage(`Spot Spray [${res.command_id}] completed on ${props.plant_code}: ${res.volume_ml} mL applied!`);
     } catch (err: any) {
       alert('Sprayer command failed: ' + err.message);

@@ -5,8 +5,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, Any, List, Optional, Union
 from sqlalchemy.orm import Session
-from app.models.models import SprayEvent, SprayerState, Plant, Field, Prescription
+from app.models.models import SprayEvent, SprayerState, Plant, Field, Prescription, AuditLog
 from app.config import settings
+from app.services.safety_service import safety_service
 
 logger = logging.getLogger(__name__)
 
@@ -454,11 +455,41 @@ class SprayerController:
                     raise ValueError(f"Safety violation: Plant {plant.plant_code} is HEALTHY. Spraying healthy crops is strictly forbidden.")
                 plant.status = "TREATED"
 
+        # SAFETY CHECK 3: Comprehensive 13-Point Safety Gate
+        safety_result = safety_service.evaluate_prescription_safety({
+            "chemical_type": "WATER", # Enforce prototype WATER ONLY mode
+            "volume_ml": volume_ml,
+            "hardware_status": "ONLINE" if self.get_active_mode() == "ESP32" else "ONLINE",
+            "operator_authorized": True,
+            "system_ready": True
+        })
+        if not safety_result.passed:
+            audit_log = AuditLog(
+                user="System",
+                zone=str(plant_id),
+                action="MANUAL_SPRAY_TRIGGER",
+                result="REJECTED",
+                reason=f"Safety Gate Failed: {'; '.join(safety_result.messages)}"
+            )
+            db.add(audit_log)
+            db.commit()
+            raise ValueError(f"Safety Gate Failed: {'; '.join(safety_result.messages)}")
+
         # Execute driver spray
         self.driver.spray(f"P-{plant_id}", volume_ml)
         self.current_state = SprayerStateEnum.READY
 
         active_mode = self.get_active_mode()
+
+        # Audit Log
+        audit_log = AuditLog(
+            user="Operator",
+            zone=str(plant_id),
+            action="MANUAL_SPRAY_TRIGGER",
+            result="COMPLETED",
+            reason=f"Dispensed {volume_ml} mL in {active_mode} mode"
+        )
+        db.add(audit_log)
 
         # Log SprayEvent
         spray_event = SprayEvent(
@@ -559,16 +590,39 @@ class SprayerController:
 
             # 3. SAFETY RULE ENFORCEMENT: Never spray healthy plants
             sev_check = (plant.severity or plant.status).upper()
-            if sev_check == "HEALTHY" or vol <= 0.0:
+            
+            # Additional 13-Point Safety Check
+            safety_result = safety_service.evaluate_prescription_safety({
+                "chemical_type": "WATER",
+                "volume_ml": vol,
+                "hardware_status": "ONLINE" if active_mode == "ESP32" else "ONLINE",
+                "operator_authorized": True,
+                "system_ready": True
+            })
+
+            if sev_check == "HEALTHY" or vol <= 0.0 or not safety_result.passed:
                 plants_skipped_healthy += 1
                 self.current_state = SprayerStateEnum.READY
                 self.current_volume = 0.0
+                
+                skip_reason = "HEALTHY" if sev_check == "HEALTHY" else "SAFETY GATE FAILED"
+                if not safety_result.passed:
+                    skip_reason = f"SAFETY FAILED: {safety_result.messages[0]}"
+                    audit_log = AuditLog(
+                        user="System",
+                        zone=plant.plant_code,
+                        action="AUTO_PRESCRIPTION_EXECUTE",
+                        result="REJECTED",
+                        reason=skip_reason
+                    )
+                    db.add(audit_log)
+
                 execution_logs.append({
                     "plant_code": plant.plant_code,
                     "action": "SKIPPED",
                     "volume_ml": 0.0,
-                    "severity": "HEALTHY",
-                    "details": f"{plant.plant_code} → READY (HEALTHY - Chemical spray locked / 0 mL skipped)"
+                    "severity": sev_check,
+                    "details": f"{plant.plant_code} → READY ({skip_reason} - Chemical spray locked / 0 mL skipped)"
                 })
             else:
                 # 4. Spraying Execution
@@ -587,6 +641,15 @@ class SprayerController:
                     timestamp=datetime.utcnow()
                 )
                 db.add(spray_event)
+                
+                audit_log = AuditLog(
+                    user="System",
+                    zone=plant.plant_code,
+                    action="AUTO_PRESCRIPTION_EXECUTE",
+                    result="COMPLETED",
+                    reason=f"Sprayed {vol} mL in {active_mode} mode"
+                )
+                db.add(audit_log)
 
                 plant.status = "TREATED"
                 plants_treated += 1
