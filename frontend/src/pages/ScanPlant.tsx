@@ -139,7 +139,10 @@ export const ScanPlant: React.FC = () => {
         }
         setIsCameraActive(true);
       } else {
-        setError('Camera API not supported on this device/browser.');
+        // Fallback: mobile browsers block getUserMedia on HTTP, so we use a native HTML file input with capture="environment"
+        const fallback = document.getElementById('cameraFallbackInput');
+        if (fallback) fallback.click();
+        else setError('Camera API not supported on this device/browser.');
       }
     } catch (err: any) {
       console.error('Camera access error:', err);
