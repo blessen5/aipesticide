@@ -139,7 +139,10 @@ export const ScanPlant: React.FC = () => {
         }
         setIsCameraActive(true);
       } else {
-        setError('Camera API not supported on this device/browser.');
+        // Fallback: mobile browsers block getUserMedia on HTTP, so we use a native HTML file input with capture="environment"
+        const fallback = document.getElementById('cameraFallbackInput');
+        if (fallback) fallback.click();
+        else setError('Camera API not supported on this device/browser.');
       }
     } catch (err: any) {
       console.error('Camera access error:', err);
@@ -346,7 +349,15 @@ export const ScanPlant: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-16 max-w-3xl mx-auto px-2 sm:px-4">
+    <div className="p-4 sm:p-8 space-y-8 animate-fadeIn max-w-6xl mx-auto relative pb-32">
+      <input 
+        type="file" 
+        id="cameraFallbackInput" 
+        accept="image/*" 
+        capture="environment" 
+        className="hidden" 
+        onChange={handleFileChange} 
+      />
       
       {/* 1. Select Field & Zone Header */}
       <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-3 shadow-xl">
@@ -620,7 +631,6 @@ export const ScanPlant: React.FC = () => {
       {/* 4. AI Diagnosis Panel */}
       {detectionResult && (
         <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-emerald-500/40 space-y-5 shadow-2xl animate-fadeIn bg-slate-900/90">
-          
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <Sparkles className="w-5 h-5 text-emerald-400" />
