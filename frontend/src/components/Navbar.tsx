@@ -65,27 +65,27 @@ export const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           
           {/* Logo & Title */}
-          <Link to="/" className="flex items-center space-x-3 group">
+          <Link to="/" className="flex items-center space-x-3 group flex-shrink-0">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:scale-105 transition-transform">
               <Sprout className="w-6 h-6 text-slate-950 font-bold" />
             </div>
-            <div>
+            {/* <div> */}
               <div className="flex items-center space-x-2">
                 <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-emerald-400 bg-clip-text text-transparent">
                   AgriPrescribe
                 </span>
-                <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                {/* <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
                   <Sparkles className="w-2.5 h-2.5" /> SIH 2026
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
+                </span> */}
+              {/* </div> */}
+              {/* <p className="text-[11px] text-slate-400 hidden sm:block">
                 Precision Plant Disease Detection & Spot Spraying
-              </p>
+              </p> */}
             </div>
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-1">
+          <nav className="hidden md:flex items-center space-x-1 ml-12">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path || (item.path === '/scan' && location.pathname === '/detect');
