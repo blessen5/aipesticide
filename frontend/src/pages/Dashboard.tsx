@@ -193,7 +193,7 @@ export const Dashboard: React.FC = () => {
               Smartphone-Assisted Prescription Mapping & Precision Spraying System
             </h1>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              AI foliage diagnosis converts crop disease detection into geo-located prescription maps, saving up to <span className="text-emerald-400 font-bold">{summary?.estimated_reduction_percentage || 65}% chemical volume</span> vs conventional broadcast spraying.
+              AI foliage diagnosis converts crop disease detection into geo-located prescription maps, saving up to <span className="text-emerald-400 font-bold">{summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(2) : 65}% chemical volume</span> vs conventional broadcast spraying.
             </p>
           </div>
 
@@ -313,7 +313,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="my-2">
             <div className="text-2xl sm:text-3xl font-extrabold text-emerald-300">
-              {summary?.estimated_reduction_percentage ?? 0}%
+              {summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(2) : 0}%
             </div>
             <p className="text-[11px] text-emerald-400">Vs broad uniform spray</p>
           </div>
@@ -427,7 +427,7 @@ export const Dashboard: React.FC = () => {
               </span>
             </div>
             <span className="font-extrabold text-emerald-400 text-sm">
-              -{summary?.estimated_reduction_percentage}% SAVED
+              -{summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(2) : 0}% SAVED
             </span>
           </div>
         </div>

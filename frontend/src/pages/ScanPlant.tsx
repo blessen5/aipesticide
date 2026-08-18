@@ -246,6 +246,12 @@ export const ScanPlant: React.FC = () => {
       const formData = new FormData();
       if (selectedFile) {
         formData.append('file', selectedFile);
+      } else if (previewUrl) {
+        const sample = demoSamples.find(s => s.url === previewUrl);
+        const filename = sample ? `${sample.id}.jpg` : 'demo.jpg';
+        const response = await fetch(previewUrl);
+        const blob = await response.blob();
+        formData.append('file', blob, filename);
       }
       formData.append('zone_id', String(selectedZoneId));
 
