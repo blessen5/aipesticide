@@ -278,7 +278,7 @@ export const Demo: React.FC = () => {
               DEMO MODE
             </span>
             <span className="font-bold text-amber-900 text-sm">
-              🎯 AgriPrescribe — SIH 2026 Live Presentation
+              🎯 AgriPrescribe — Live Field Presentation & Sprayer Simulation
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -286,10 +286,11 @@ export const Demo: React.FC = () => {
             <button
               onClick={handleReset}
               disabled={resetting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/70 hover:bg-amber-900 text-amber-100 text-xs font-bold border border-amber-700 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/80 hover:bg-amber-900 text-amber-100 text-xs font-bold border border-amber-700 transition shadow-sm"
+              title="Reset prototype demo field and re-seed dataset"
             >
               <RotateCcw className={`w-3.5 h-3.5 ${resetting ? 'animate-spin' : ''}`} />
-              {resetting ? 'Resetting…' : 'Reset Demo'}
+              {resetting ? 'Resetting…' : 'Reset Demo Data'}
             </button>
           </div>
         </div>

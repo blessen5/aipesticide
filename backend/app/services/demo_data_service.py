@@ -1,8 +1,9 @@
 """
-Demo data seeding service for AgriPrescribe SIH 2026 Demo Mode.
+Demo data seeding service for AgriPrescribe Demo Mode.
 
 Generates a fully self-contained, offline demo dataset with:
 - 1 primary demo field (Ludhiana Wheat Farm)
+- 4 farm management zones (North Plot, East Hotspot, South Sector, West Orchard)
 - 24 demo plants with varied infection levels
 - AI detection results for every plant
 - Generated prescriptions for every plant
@@ -13,7 +14,11 @@ import random
 import base64
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from app.models.models import User, Field, Plant, Detection, Prescription, SprayEvent, SprayerState
+from app.models.models import (
+    User, Field, Zone, ZoneHardwareMapping, HardwareNode, Valve,
+    Plant, Detection, Prescription, SprayEvent, SprayerState,
+    TreatmentProduct, StorageRecord
+)
 from app.services.prescription_service import prescription_engine
 
 
@@ -58,35 +63,34 @@ MOD_COLOR = "#ea580c"
 HIGH_COLOR = "#dc2626"
 
 
-def _plant_image(severity: str, plant_code: str, infection_pct: float) -> str:
-    color_map = {
+def _plant_image(severity: str, label: str, inf_pct: float) -> str:
+    color = {
         "HEALTHY": HEALTHY_COLOR,
         "LOW": LOW_COLOR,
         "MODERATE": MOD_COLOR,
         "HIGH": HIGH_COLOR,
-    }
-    return _svg_to_data_uri(_make_plant_svg(color_map.get(severity, HEALTHY_COLOR), plant_code, infection_pct))
+    }.get(severity, HEALTHY_COLOR)
+    return _svg_to_data_uri(_make_plant_svg(color, label, inf_pct))
 
 
 # ──────────────────────────────────────────────
-# Main seed function
+# 24 deterministic demo plants across field
+# (plant_code, dlat, dlng, crop, status, inf_pct, disease, severity)
 # ──────────────────────────────────────────────
-
 DEMO_PLANT_SPECS = [
-    # (code, lat_off, lng_off, crop, status, inf_pct, disease, severity)
-    ("WHEAT-001", 0.0001, 0.0001, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
-    ("WHEAT-002", 0.0003, 0.0002, "Wheat", "HIGH",      68.5, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
-    ("WHEAT-003", 0.0005, 0.0004, "Wheat", "MODERATE",  35.0, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
-    ("WHEAT-004", 0.0002, 0.0006, "Wheat", "LOW",       12.0, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
-    ("WHEAT-005", 0.0007, 0.0003, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
-    ("WHEAT-006", 0.0009, 0.0005, "Wheat", "MODERATE",  28.0, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
-    ("WHEAT-007", 0.0004, 0.0008, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
-    ("WHEAT-008", 0.0011, 0.0002, "Wheat", "HIGH",      74.0, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
-    ("WHEAT-009", 0.0006, 0.0010, "Wheat", "LOW",        8.5, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
-    ("WHEAT-010", 0.0013, 0.0007, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
-    ("WHEAT-011", 0.0008, 0.0012, "Wheat", "MODERATE",  42.0, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
-    ("WHEAT-012", 0.0015, 0.0004, "Wheat", "HIGH",      81.0, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
-    ("WHEAT-013", 0.0010, 0.0014, "Wheat", "LOW",       19.5, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
+    ("WHEAT-001", 0.0000, 0.0000, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
+    ("WHEAT-002", 0.0005, 0.0008, "Wheat", "LOW",        8.5, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
+    ("WHEAT-003", 0.0010, 0.0002, "Wheat", "MODERATE",  34.0, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
+    ("WHEAT-004", 0.0003, 0.0012, "Wheat", "HIGH",      68.5, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
+    ("WHEAT-005", 0.0008, 0.0005, "Wheat", "LOW",       12.0, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
+    ("WHEAT-006", 0.0015, 0.0010, "Wheat", "HIGH",      82.0, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
+    ("WHEAT-007", 0.0002, 0.0018, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
+    ("WHEAT-008", 0.0012, 0.0007, "Wheat", "MODERATE",  41.5, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
+    ("WHEAT-009", 0.0007, 0.0015, "Wheat", "LOW",       19.0, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
+    ("WHEAT-010", 0.0018, 0.0003, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
+    ("WHEAT-011", 0.0004, 0.0020, "Wheat", "HIGH",      74.0, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
+    ("WHEAT-012", 0.0014, 0.0014, "Wheat", "MODERATE",  28.0, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
+    ("WHEAT-013", 0.0009, 0.0022, "Wheat", "LOW",       15.0, "Wheat Stripe Rust (Puccinia striiformis)", "LOW"),
     ("WHEAT-014", 0.0017, 0.0009, "Wheat", "HEALTHY",   0.0,  "Healthy Crop",                              "HEALTHY"),
     ("WHEAT-015", 0.0012, 0.0016, "Wheat", "MODERATE",  31.0, "Wheat Stripe Rust (Puccinia striiformis)", "MODERATE"),
     ("WHEAT-016", 0.0019, 0.0011, "Wheat", "HIGH",      59.0, "Wheat Stripe Rust (Puccinia striiformis)", "HIGH"),
@@ -103,28 +107,32 @@ DEMO_PLANT_SPECS = [
 
 def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
     """
-    Seeds or re-seeds the SIH 2026 demo dataset.
-
-    - If force_reseed=True (called by POST /api/demo/reset), wipes all tables first.
-    - If demo data already exists and force_reseed=False, returns existing counts.
-    - All plant images are inline SVG data URIs — no internet connection required.
+    Seeds or re-seeds the demo dataset including fields, zones, and plants.
     """
-    if not force_reseed and db.query(Field).first():
+    field_exists = db.query(Field).first()
+    zones_exist = db.query(Zone).count() > 0
+
+    if not force_reseed and field_exists and zones_exist:
         return {
             "message": "Demo data already exists.",
             "seeded": False,
             "fields_count": db.query(Field).count(),
+            "zones_count": db.query(Zone).count(),
             "plants_count": db.query(Plant).count(),
             "prescriptions_count": db.query(Prescription).count(),
             "spray_events_count": db.query(SprayEvent).count(),
         }
 
-    # Wipe all existing demo data
-    if force_reseed:
+    # Wipe all existing demo data if force_reseed or incomplete seed
+    if force_reseed or not zones_exist:
         db.query(SprayEvent).delete()
         db.query(Prescription).delete()
         db.query(Detection).delete()
         db.query(Plant).delete()
+        db.query(ZoneHardwareMapping).delete()
+        db.query(Zone).delete()
+        db.query(Valve).delete()
+        db.query(HardwareNode).delete()
         db.query(SprayerState).delete()
         db.query(Field).delete()
         db.query(User).delete()
@@ -132,8 +140,8 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
 
     # ── 1. Demo User ─────────────────────────────
     user = User(
-        name="Ramesh Patel — SIH 2026 Demo Farmer",
-        email="demo@agriprescribe.sih2026.in",
+        name="Ramesh Patel — Demo Farmer",
+        email="demo@agriprescribe.in",
         role="Farmer",
     )
     db.add(user)
@@ -142,7 +150,7 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
     # ── 2. Primary Demo Field (Ludhiana, Punjab) ──
     demo_field = Field(
         user_id=user.id,
-        name="Ludhiana Green Valley — SIH Demo Field",
+        name="Ludhiana Green Valley — Demo Field",
         crop_type="Wheat",
         area=3.2,
         latitude=30.9010,
@@ -151,11 +159,89 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
     db.add(demo_field)
     db.flush()
 
-    # ── 3. Create 24 Plants ───────────────────────
+    # ── 3. Farm Management Zones ──────────────────
+    z1 = Zone(
+        field_id=demo_field.id,
+        name="Zone A (North Plot)",
+        latitude=30.9015,
+        longitude=75.8570,
+        crop="Wheat",
+        crop_stage="Vegetative",
+        irrigation_method="Drip",
+        nozzle_type="Hollow Cone",
+        status="HEALTHY"
+    )
+    z2 = Zone(
+        field_id=demo_field.id,
+        name="Zone B (East Hotspot)",
+        latitude=30.9010,
+        longitude=75.8580,
+        crop="Wheat",
+        crop_stage="Vegetative",
+        irrigation_method="Drip",
+        nozzle_type="Air Induction",
+        status="HIGH"
+    )
+    z3 = Zone(
+        field_id=demo_field.id,
+        name="Zone C (South Sector)",
+        latitude=30.9005,
+        longitude=75.8573,
+        crop="Wheat",
+        crop_stage="Flowering",
+        irrigation_method="Sprinkler",
+        nozzle_type="Twin Fan",
+        status="MODERATE"
+    )
+    z4 = Zone(
+        field_id=demo_field.id,
+        name="Zone D (West Orchard)",
+        latitude=30.9010,
+        longitude=75.8565,
+        crop="Wheat",
+        crop_stage="Tillering",
+        irrigation_method="Drip",
+        nozzle_type="Flat Fan",
+        status="LOW"
+    )
+    db.add_all([z1, z2, z3, z4])
+    db.flush()
+
+    demo_zones = [z1, z2, z3, z4]
+
+    # Hardware Node & Valves
+    h_node = HardwareNode(
+        node_id="NODE-ESP32-FIELD-01",
+        online=True,
+        pump_state="OFF",
+        pressure_status="NORMAL",
+        flow_status="NORMAL",
+        firmware_version="v2.4.1"
+    )
+    db.add(h_node)
+    db.flush()
+
+    for idx, z in enumerate(demo_zones):
+        v = Valve(node_id=h_node.id, valve_id=f"V{idx+1}", state="CLOSED")
+        db.add(v)
+        db.flush()
+
+        mapping = ZoneHardwareMapping(
+            zone_id=z.id,
+            node_id=h_node.node_id,
+            valve_id=v.valve_id,
+            nozzle_id=f"NOZZLE-{z.nozzle_type.replace(' ', '-').upper()}",
+            application_geometry="BOOM_SECTION",
+            enabled=True
+        )
+        db.add(mapping)
+
+    # ── 4. Create 24 Plants ───────────────────────
     created_plants: list[Plant] = []
     random.seed(42)  # deterministic for demo reproducibility
 
-    for code, dlat, dlng, crop, status, inf_pct, disease, severity in DEMO_PLANT_SPECS:
+    for i, (code, dlat, dlng, crop, status, inf_pct, disease, severity) in enumerate(DEMO_PLANT_SPECS):
+        assigned_zone = demo_zones[i % len(demo_zones)]
         p = Plant(
             field_id=demo_field.id,
             plant_code=code,
@@ -173,14 +259,16 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
 
     db.flush()
 
-    # ── 4. Detections, Prescriptions & Spray Events ──
+    # ── 5. Detections, Prescriptions & Spray Events ──
     spray_events_seeded = 0
-    for p in created_plants:
+    for i, p in enumerate(created_plants):
+        assigned_zone = demo_zones[i % len(demo_zones)]
         confidence = 0.99 if p.severity == "HEALTHY" else round(random.uniform(0.88, 0.97), 2)
 
         # Detection with offline SVG image
         det = Detection(
             plant_id=p.id,
+            zone_id=assigned_zone.id,
             image_url=_plant_image(p.severity, p.plant_code, p.infection_percentage),
             disease=p.disease,
             confidence=confidence,
@@ -200,6 +288,7 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
         )
         presc = Prescription(
             plant_id=p.id,
+            zone_id=assigned_zone.id,
             crop_type=p.crop_type,
             disease=rx_data["disease"],
             infection_percentage=rx_data["infection_percentage"],
@@ -209,6 +298,8 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
             recommended_volume_ml=rx_data["recommended_volume_ml"],
             priority=rx_data["priority"],
             reason=rx_data.get("reason", ""),
+            hardware_node_id=h_node.node_id,
+            valve_id=f"V{(i % len(demo_zones)) + 1}",
             created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
         )
         db.add(presc)
@@ -226,7 +317,7 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
             db.add(spray)
             spray_events_seeded += 1
 
-    # ── 5. Sprayer State ──────────────────────────
+    # ── 6. Sprayer State ──────────────────────────
     sprayer_state = SprayerState(
         status="READY",
         mode="SIMULATED",
@@ -239,11 +330,12 @@ def seed_demo_data(db: Session, force_reseed: bool = False) -> dict:
     db.commit()
 
     return {
-        "message": "✅ SIH 2026 Demo data seeded successfully!",
+        "message": "✅ Demo data seeded successfully with zones!",
         "seeded": True,
         "demo_field": demo_field.name,
         "demo_field_id": demo_field.id,
         "fields_count": db.query(Field).count(),
+        "zones_count": db.query(Zone).count(),
         "plants_count": db.query(Plant).count(),
         "prescriptions_count": db.query(Prescription).count(),
         "spray_events_count": db.query(SprayEvent).count(),

@@ -8,20 +8,19 @@ import {
   Radio, 
   History, 
   BarChart3, 
-  RotateCcw,
-  Wifi,
-  WifiOff,
-  Target,
-  ShieldAlert,
-  FlaskConical,
-  Database,
-  ChevronDown,
-  Menu,
-  X,
-  User,
-  LogOut,
-  Sliders,
-  CheckCircle2
+  Wifi, 
+  WifiOff, 
+  Target, 
+  ShieldAlert, 
+  FlaskConical, 
+  Database, 
+  ChevronDown, 
+  Menu, 
+  X, 
+  User, 
+  LogOut, 
+  Sliders, 
+  CheckCircle2 
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -35,7 +34,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRole = 'FARMER', onLogout
   const location = useLocation();
   const [healthStatus, setHealthStatus] = useState<'ONLINE' | 'OFFLINE'>('ONLINE');
   const [latencyMs, setLatencyMs] = useState<number | null>(14);
-  const [isResetting, setIsResetting] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -80,19 +78,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRole = 'FARMER', onLogout
     setMoreDropdownOpen(false);
     setUserMenuOpen(false);
   }, [location.pathname]);
-
-  const handleResetDemoData = async () => {
-    if (!window.confirm('Reset and re-seed prototype demo field & crop dataset?')) return;
-    setIsResetting(true);
-    try {
-      await api.seedDemoData();
-      window.location.reload();
-    } catch (err) {
-      alert('Failed to reset demo data: ' + err);
-    } finally {
-      setIsResetting(false);
-    }
-  };
 
   const isDemo = location.pathname === '/demo';
 
@@ -310,17 +295,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRole = 'FARMER', onLogout
                 )}
               </div>
 
-              {/* Reset Demo Data Button */}
-              <button
-                onClick={handleResetDemoData}
-                disabled={isResetting}
-                className="hidden sm:flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/80 transition shadow-sm"
-                title="Reset prototype demo field & crop dataset"
-              >
-                <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin text-emerald-400' : 'text-slate-400'}`} />
-                <span>Reset Demo</span>
-              </button>
-
               {/* User Profile / Role Switcher Menu */}
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -433,15 +407,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRole = 'FARMER', onLogout
                   </p>
                 </div>
               </div>
-              
-              <button
-                onClick={handleResetDemoData}
-                disabled={isResetting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700"
-              >
-                <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
-                <span>Reset</span>
-              </button>
             </div>
 
             {/* Core Workflows */}
