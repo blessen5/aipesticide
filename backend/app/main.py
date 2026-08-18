@@ -15,6 +15,8 @@ from app.api.knowledge_endpoints import router as knowledge_router
 from app.services.demo_data_service import seed_demo_data
 
 
+from app.models import models as app_models, knowledge_models as app_knowledge_models
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 

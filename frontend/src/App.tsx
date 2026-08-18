@@ -23,10 +23,20 @@ export const App: React.FC = () => {
     return <Login onLogin={setRole} />;
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('userRole');
+    setRole(null);
+  };
+
+  const handleRoleChange = (newRole: string) => {
+    localStorage.setItem('userRole', newRole);
+    setRole(newRole);
+  };
+
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
-        <Navbar />
+      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950 pb-16 md:pb-0">
+        <Navbar currentRole={role} onLogout={handleLogout} onRoleChange={handleRoleChange} />
         
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
