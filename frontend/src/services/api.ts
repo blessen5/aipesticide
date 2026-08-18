@@ -22,7 +22,9 @@ const fetchWithAuth = async (input: RequestInfo | URL, init?: RequestInit): Prom
   return fetch(input, newInit);
 };
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.PROD 
+  ? 'https://aipesticide-api.onrender.com' 
+  : '/api';
 
 // Offline caching utility
 const offlineGet = async <T>(url: string, cacheKey: string): Promise<T> => {
