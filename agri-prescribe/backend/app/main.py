@@ -8,6 +8,7 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.api.endpoints import router as api_router
 from app.api.esp32_endpoints import hardware_router
+from app.api.demo_router import demo_router
 from app.services.demo_data_service import seed_demo_data
 
 
@@ -52,6 +53,9 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Include ESP32 Hardware router (optional hardware integration)
 app.include_router(hardware_router, prefix=settings.API_V1_STR)
+
+# Include Demo Mode router (SIH 2026 demo reset & status)
+app.include_router(demo_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

@@ -10,6 +10,7 @@ import { PrescriptionMap } from './pages/PrescriptionMap';
 import { SprayerControl } from './pages/SprayerControl';
 import { SprayHistory } from './pages/SprayHistory';
 import { Analytics } from './pages/Analytics';
+import { Demo } from './pages/Demo';
 
 export const App: React.FC = () => {
   return (
@@ -26,6 +27,7 @@ export const App: React.FC = () => {
             <Route path="/sprayer" element={<SprayerControl />} />
             <Route path="/history" element={<SprayHistory />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/demo" element={<Demo />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

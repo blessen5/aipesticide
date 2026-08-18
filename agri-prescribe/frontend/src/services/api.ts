@@ -170,10 +170,16 @@ export const api = {
     return res.json();
   },
 
-  // 16. Reseed Demo Data
+  // 16. Reseed / Reset Demo Data
   seedDemoData: async () => {
-    const res = await fetch(`${API_BASE}/demo/seed`, { method: 'POST' });
+    const res = await fetch(`${API_BASE}/demo/reset`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset and seed demo dataset');
+    return res.json();
+  },
+
+  resetDemo: async () => {
+    const res = await fetch(`${API_BASE}/demo/reset`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to reset demo dataset');
     return res.json();
   }
 };

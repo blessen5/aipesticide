@@ -50,15 +50,23 @@ def test_health_check(client):
     assert data["service"] == "AgriPrescribe API"
 
 
-# 2. Test Demo Seed Endpoint
+# 2. Test Demo Endpoints
 def test_seed_demo_data(client):
-    response = client.post("/api/demo/seed")
+    response = client.post("/api/demo/reset")
     assert response.status_code == 200
     data = response.json()
-    assert "successfully seeded" in data["message"].lower()
+    assert "seeded" in data["message"].lower()
     assert data["fields_count"] >= 1
     assert data["plants_count"] >= 20
     assert data["prescriptions_count"] >= 20
+
+def test_demo_status_endpoint(client):
+    response = client.get("/api/demo/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["demo_ready"] is True
+    assert data["plants_count"] >= 20
+    assert data["demo_field_id"] is not None
 
 
 # 3. Test Fields Endpoints

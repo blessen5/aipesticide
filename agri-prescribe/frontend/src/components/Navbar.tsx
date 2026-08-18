@@ -11,7 +11,8 @@ import {
   RotateCcw,
   Sparkles,
   Wifi,
-  WifiOff
+  WifiOff,
+  Target
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -46,6 +47,8 @@ export const Navbar: React.FC = () => {
       setIsResetting(false);
     }
   };
+
+  const isDemo = location.pathname === '/demo';
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -106,10 +109,30 @@ export const Navbar: React.FC = () => {
                 </Link>
               );
             })}
+
+            {/* Demo Mode link */}
+            <Link
+              to="/demo"
+              className={`flex items-center space-x-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                isDemo
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-md shadow-amber-500/10'
+                  : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent'
+              }`}
+            >
+              <Target className="w-4 h-4" />
+              <span>Demo</span>
+            </Link>
           </nav>
 
           {/* Right Action Buttons */}
           <div className="flex items-center space-x-3">
+            {/* DEMO MODE badge (visible when on /demo) */}
+            {isDemo && (
+              <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black animate-pulse">
+                <Target className="w-3 h-3" /> DEMO MODE
+              </span>
+            )}
+
             {/* Live API Status Indicator */}
             <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
               healthStatus === 'ONLINE'
