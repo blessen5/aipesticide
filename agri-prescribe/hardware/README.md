@@ -1,17 +1,87 @@
-# AgriPrescribe Hardware & ESP32 Integration
+# AgriPrescribe — Hardware & ESP32 Integration
 
-This directory contains the firmware, schematic references, and API documentation for connecting physical hardware sprayers or using the built-in software simulator.
+This directory contains firmware, wiring references, and toolchain configuration for the
+optional ESP32 hardware integration. The software **always works without any hardware** —
+the built-in simulator handles all demonstrations.
 
-## Features
-- **REST API Enabled**: Exposes `POST /api/spray` and `GET /api/status` over local Wi-Fi / MQTT.
-- **Dual Mode**:
-  1. **Simulated Mode (Default)**: Full state machine running inside FastAPI backend for easy demonstration without physical boards.
-  2. **Hardware Mode**: Direct TCP/HTTP communication with ESP32 nodeMCU.
+---
+
+## Directory Structure
+
+```
+hardware/
+└── esp32/
+    ├── esp32_sprayer_firmware.ino   ← Main Arduino sketch (flash this to your board)
+    ├── config.h                     ← Wi-Fi credentials & GPIO pin assignments (edit this)
+    ├── platformio.ini               ← PlatformIO build config (alternative to Arduino IDE)
+    └── libraries.txt                ← Required library list + Arduino IDE setup instructions
+```
+
+---
+
+## Quick Reference
+
+### Default Mode — No Hardware Needed
+
+```bash
+# No environment variables required
+uvicorn app.main:app --reload
+# → SPRAYER_MODE=SIMULATED (auto-default)
+```
+
+### Hardware Mode — With ESP32 Connected
+
+```bash
+# Edit hardware/esp32/config.h with your Wi-Fi SSID/password, then:
+SPRAYER_MODE=ESP32 ESP32_HOST=<your-esp32-ip> uvicorn app.main:app --reload
+```
+
+If the ESP32 is unreachable, the backend **automatically falls back to SIMULATED** mode.
+
+---
 
 ## Pinout Map (ESP32-WROOM-32)
-- `GPIO 16`: Nozzle 1 Relay / MOSFET
-- `GPIO 17`: Nozzle 2 Relay / MOSFET
-- `GPIO 18`: Nozzle 3 Relay / MOSFET
-- `GPIO 19`: Nozzle 4 Relay / MOSFET
-- `GPIO 05`: Ultrasonic Sensor Trigger Pin
-- `GPIO 02`: On-board Status LED
+
+| GPIO | Function | Component (Prototype) |
+|------|----------|-----------------------|
+| 16 | `PUMP_PIN` | Water pump relay / MOSFET |
+| 17 | `SERVO_PIN` | Nozzle servo signal |
+| 18 | `MOTOR_PIN` | Chassis motor relay (future) |
+| 2 | `STATUS_LED_PIN` | On-board status LED |
+
+---
+
+## FastAPI Hardware Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/hardware/health` | GET | Ping ESP32 — `{connected: true/false}` |
+| `/api/hardware/status` | GET | Full live telemetry |
+| `/api/hardware/command` | POST | Send `START/STOP/MOVE/SPRAY` |
+| `/api/hardware/switch-mode` | POST | Hot-swap `SIMULATED` ↔ `ESP32` |
+
+---
+
+## Command Payload
+
+```json
+{
+  "command": "SPRAY",
+  "plant_id": "P003",
+  "volume_ml": 10
+}
+```
+
+---
+
+## Documentation
+
+- 📖 [ESP32_INTEGRATION.md](../docs/hardware/ESP32_INTEGRATION.md) — Full setup guide, API reference, calibration
+- 🔌 [WIRING_DIAGRAM.md](../docs/hardware/WIRING_DIAGRAM.md) — Component list, wiring steps, safety checklist
+
+---
+
+## Safety Notice
+
+> ⚠ **PROTOTYPE: Water pump only.** No real pesticide or chemical during development/testing.  
+> The firmware enforces a **30-second maximum pump-on watchdog** for safety.

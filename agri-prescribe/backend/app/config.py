@@ -41,6 +41,27 @@ class Settings:
     DEMO_MODE: bool = True
     SIMULATED_SPRAYER_ENABLED: bool = True
 
+    # ──────────────────────────────────────────────────────────────
+    # ESP32 Hardware Integration (Optional)
+    # ──────────────────────────────────────────────────────────────
+    # SPRAYER_MODE controls which driver is active at startup:
+    #   "SIMULATED" (default) — pure software simulation, no hardware needed
+    #   "ESP32"               — real HTTP calls to physical ESP32 board
+    #
+    # If SPRAYER_MODE=ESP32 but the ESP32 is unreachable, the backend
+    # automatically falls back to SIMULATED mode and logs a warning.
+    # The simulator continues to work at all times.
+    SPRAYER_MODE: str = os.getenv("SPRAYER_MODE", "SIMULATED").upper()
+
+    # IP address of the ESP32 on the local network (or AP default 192.168.4.1)
+    ESP32_HOST: str = os.getenv("ESP32_HOST", "192.168.4.1")
+
+    # HTTP port the ESP32 firmware listens on (default: 80)
+    ESP32_PORT: int = int(os.getenv("ESP32_PORT", "80"))
+
+    # Connection timeout in seconds when probing / commanding the ESP32
+    ESP32_TIMEOUT: float = float(os.getenv("ESP32_TIMEOUT", "3.0"))
+
 settings = Settings()
 
 # Ensure directories exist

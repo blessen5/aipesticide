@@ -7,7 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.api.endpoints import router as api_router
+from app.api.esp32_endpoints import hardware_router
 from app.services.demo_data_service import seed_demo_data
+
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -47,6 +49,10 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOADS_DIR), name="uploads
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Include ESP32 Hardware router (optional hardware integration)
+app.include_router(hardware_router, prefix=settings.API_V1_STR)
+
 
 @app.get("/")
 def root():

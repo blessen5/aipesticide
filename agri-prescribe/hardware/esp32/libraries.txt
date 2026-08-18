@@ -1,0 +1,31 @@
+# AgriPrescribe ESP32 — Required Arduino Libraries
+# =====================================================
+# Install these via Arduino IDE → Sketch → Include Library → Manage Libraries
+# OR via PlatformIO (see platformio.ini for automatic installation)
+#
+# Library Name             | Version  | Source
+# ─────────────────────────────────────────────────────────────
+# ArduinoJson              | >= 6.21  | Arduino Library Manager / ArduinoJson.io
+# ESP32Servo               | >= 0.13  | Arduino Library Manager (by Kevin Harrington)
+#
+# ─────────────────────────────────────────────────────────────
+# Board Support (Arduino IDE)
+# ─────────────────────────────────────────────────────────────
+# Add this URL to File → Preferences → Additional Boards Manager URLs:
+#   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+#
+# Then: Tools → Board → Boards Manager → search "esp32" → install "esp32 by Espressif Systems"
+#
+# ─────────────────────────────────────────────────────────────
+# Board Settings (Arduino IDE)
+# ─────────────────────────────────────────────────────────────
+# Board:         ESP32 Dev Module  (or "NodeMCU-32S" for NodeMCU boards)
+# Upload Speed:  921600
+# CPU Frequency: 240MHz
+# Flash Size:    4MB
+# Partition Scheme: Default 4MB with spiffs
+# Port:          (your COM port)
+#
+# ─────────────────────────────────────────────────────────────
+# PlatformIO users: see platformio.ini — all libs install automatically.
+# ─────────────────────────────────────────────────────────────

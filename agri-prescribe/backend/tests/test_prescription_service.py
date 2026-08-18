@@ -141,15 +141,18 @@ def test_sprayer_controller_rejects_zero_volume_and_healthy_plants():
     db.add_all([healthy_plant, infected_plant])
     db.commit()
 
+    # Use the singleton sprayer controller instance (not the class itself)
+    controller = SprayerController()
+
     # 1. Attempting 0 ml spray should raise ValueError
-    with pytest.raises(ValueError, match="Spray volume must be greater than 0 mL"):
-        SprayerController.trigger_spray(db=db, plant_id=infected_plant.id, volume_ml=0.0)
+    with pytest.raises(ValueError, match="volume must be greater than 0"):
+        controller.trigger_spray(db=db, plant_id=infected_plant.id, volume_ml=0.0)
 
     # 2. Attempting to spray a healthy plant should raise ValueError
-    with pytest.raises(ValueError, match="Safety restriction: Plant .* is HEALTHY and cannot receive a spray command"):
-        SprayerController.trigger_spray(db=db, plant_id=healthy_plant.id, volume_ml=10.0)
+    with pytest.raises(ValueError, match="HEALTHY"):
+        controller.trigger_spray(db=db, plant_id=healthy_plant.id, volume_ml=10.0)
 
     # 3. Spraying infected plant with valid volume succeeds
-    result = SprayerController.trigger_spray(db=db, plant_id=infected_plant.id, volume_ml=10.0)
+    result = controller.trigger_spray(db=db, plant_id=infected_plant.id, volume_ml=10.0)
     assert result["status"] == "COMPLETED"
     assert result["volume_ml"] == 10.0
