@@ -143,6 +143,35 @@ class DiseaseDetectionService:
         else:
             return Image.new("RGB", (224, 224), color=(34, 139, 34))
 
+    def _check_image_quality(self, image: Image.Image) -> Dict[str, Any]:
+        """
+        Simulates Phase 18: Mobile Camera Quality Control.
+        Checks for blur, very low light, overexposure, leaf too small.
+        """
+        img_np = np.array(image)
+        # Convert to grayscale for quick checks
+        if len(img_np.shape) == 3:
+            gray = np.dot(img_np[...,:3], [0.2989, 0.5870, 0.1140])
+        else:
+            gray = img_np
+            
+        mean_brightness = np.mean(gray)
+        
+        # Simple simulated heuristics
+        if mean_brightness < 20:
+            return {"passed": False, "reason": "very low light", "message": "Image is too dark. Please improve lighting and retake."}
+        elif mean_brightness > 240:
+            return {"passed": False, "reason": "overexposure", "message": "Image is overexposed. Avoid strong shadows or direct glare."}
+            
+        # We would normally do variance of laplacian for blur, but for demo:
+        # Just check a random chance of blur/bad crop to demonstrate the QC gate
+        # using the image hash as seed
+        rng = random.Random(mean_brightness)
+        if rng.random() < 0.05:
+            return {"passed": False, "reason": "blur", "message": "Image is blurry. Keep camera steady and retake."}
+            
+        return {"passed": True}
+
     def _analyze_demo_cv(self, image: Image.Image, filename: str = "") -> Dict[str, Any]:
         """
         Deterministic, local Computer Vision analysis using Pillow / NumPy color heuristics.
@@ -216,7 +245,27 @@ class DiseaseDetectionService:
             inf_pct = 0.0
 
         disease_meta = self.DEMO_DISEASES[selected_disease]
-        confidence = disease_meta["base_confidence"]
+        
+        # Phase 2: Add LOW_CONFIDENCE check
+        # Let's say if the pixels are very ambiguous, we drop confidence.
+        # For demo, if both necrotic and rust are slightly elevated but not high enough:
+        is_ambiguous = (necrotic_ratio > 0.04 and rust_ratio > 0.04)
+        if is_ambiguous:
+            confidence = 0.45
+        else:
+            confidence = disease_meta["base_confidence"]
+            
+        if confidence < 0.60:
+            return {
+                "disease": "Unknown",
+                "confidence": confidence,
+                "infection_percentage": 0.0,
+                "severity": "UNKNOWN",
+                "affected_area": 0.0,
+                "explanation": "Image confidence is insufficient. Please capture another clear image.",
+                "boxes": []
+            }
+
         explanation = disease_meta["explanation_template"].format(severity_lower=severity.lower())
 
         return {
@@ -226,7 +275,8 @@ class DiseaseDetectionService:
             "severity": severity,
             "affected_area": inf_pct,
             "explanation": explanation,
-            "boxes": disease_meta["sample_boxes"]
+            "boxes": disease_meta["sample_boxes"],
+            "model_version": "v1.2.0-demo"
         }
 
     def _analyze_model_mode(self, image: Image.Image, filename: str = "") -> Dict[str, Any]:
@@ -270,6 +320,21 @@ class DiseaseDetectionService:
         """
         try:
             image = self._load_image(image_input)
+            
+            # PHASE 18: Quality Control Check
+            qc = self._check_image_quality(image)
+            if not qc["passed"]:
+                return {
+                    "disease": "QC_FAILED",
+                    "confidence": 0.0,
+                    "infection_percentage": 0.0,
+                    "severity": "UNKNOWN",
+                    "affected_area": 0.0,
+                    "explanation": qc["message"],
+                    "boxes": [],
+                    "model_version": "v1.2.0-qc"
+                }
+            
             if self.mode == "model":
                 return self._analyze_model_mode(image, filename)
             else:

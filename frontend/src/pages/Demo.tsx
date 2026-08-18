@@ -210,20 +210,39 @@ export const Demo: React.FC = () => {
     setExecLogs(['🤖 Initialising Automated Sprayer Controller...']);
     try {
       await new Promise(r => setTimeout(r, 600));
-      setExecLogs(l => [...l, '📡 Connecting to ESP32 Sprayer (SIMULATED mode)...']);
+      
+      const statusRes = await api.getSprayerStatus();
+      setExecLogs(l => [...l, `📡 Connecting to Hardware (Mode: ${statusRes.mode})...`]);
       await new Promise(r => setTimeout(r, 500));
-      setExecLogs(l => [...l, '🔋 Battery: 94%  |  Fluid: 88%  |  Mode: SIMULATED']);
+      setExecLogs(l => [...l, `🔋 Battery: ${statusRes.battery_level}%  |  Fluid: ${statusRes.fluid_level_pct}%`]);
       await new Promise(r => setTimeout(r, 400));
       setExecLogs(l => [...l, '🗺️  Loading prescription map for field...']);
       await new Promise(r => setTimeout(r, 500));
 
-      const result = await api.executeFieldPrescription(field.id, 'SIMULATED');
+      const result = await api.executeFieldPrescription(field.id, statusRes.mode);
       setExecutionResult(result);
 
+      // Add a simulation of the zone-based hardware flow
       for (const log of result.execution_logs) {
         await new Promise(r => setTimeout(r, 300));
-        const icon = log.action === 'SKIPPED' ? '✅' : '💧';
-        setExecLogs(l => [...l, `${icon} [${log.plant_code}] ${log.action} — ${log.details}`]);
+        
+        if (log.action === 'SKIPPED') {
+          setExecLogs(l => [...l, `✅ [${log.plant_code}] ${log.action} — ${log.details}`]);
+        } else if (log.action === 'MOVING') {
+          setExecLogs(l => [...l, `🚜 Moving to plant [${log.plant_code}] (Zone: ${log.zone_id})...`]);
+        } else if (log.action === 'SPRAYING') {
+          setExecLogs(l => [...l, `💧 Opening Zone ${log.zone_id} Valve...`]);
+          await new Promise(r => setTimeout(r, 200));
+          setExecLogs(l => [...l, `⚙️  Starting Pump... Flow rate: 1.2 L/m`]);
+          await new Promise(r => setTimeout(r, 400));
+          setExecLogs(l => [...l, `💧 [${log.plant_code}] ${log.action} — ${log.details} (${log.volume_ml} mL)`]);
+        } else if (log.action === 'COMPLETED') {
+          setExecLogs(l => [...l, `⚙️  Stopping Pump... Closing Valve...`]);
+          await new Promise(r => setTimeout(r, 200));
+          setExecLogs(l => [...l, `✅ [${log.plant_code}] Treatment completed.`]);
+        } else {
+          setExecLogs(l => [...l, `ℹ️ [${log.plant_code}] ${log.action} — ${log.details}`]);
+        }
       }
       await new Promise(r => setTimeout(r, 500));
       setExecLogs(l => [...l, ``, `🏁 MISSION COMPLETE — ${result.plants_treated} plants treated, ${result.plants_skipped_healthy} skipped (healthy)`, `💧 Total volume sprayed: ${result.total_volume_sprayed.toFixed(1)} mL`]);

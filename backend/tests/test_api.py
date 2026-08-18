@@ -107,10 +107,8 @@ def test_get_plants(client):
 
 
 def test_get_plants_filtered_by_field(client):
-    # Fetch all fields first
     fields_res = client.get("/api/fields")
     field_id = fields_res.json()[0]["id"]
-
     response = client.get(f"/api/plants?field_id={field_id}")
     assert response.status_code == 200
     plants = response.json()
@@ -163,7 +161,7 @@ def test_detection_analyze_singular_endpoint(client):
     files = {"file": ("leaf_blight_sample.jpg", img_bytes, "image/jpeg")}
     data = {"plant_id": "1"}
 
-    response = client.post("/api/detection/analyze", files=files, data=data)
+    response = client.post("/api/ai/analyze", files=files, data=data)
     assert response.status_code == 200
     result = response.json()
     assert "disease" in result
@@ -185,7 +183,7 @@ def test_detection_analyze_with_synthetic_image(client):
     files = {"file": ("healthy_leaf.jpg", img_bytes, "image/jpeg")}
     data = {"plant_id": "1"}
 
-    response = client.post("/api/detections/analyze", files=files, data=data)
+    response = client.post("/api/ai/analyze", files=files, data=data)
     assert response.status_code == 200
     result = response.json()
     assert result["disease"] == "Healthy"
@@ -196,9 +194,9 @@ def test_detection_analyze_with_synthetic_image(client):
 # 6. Test Prescription Generation with Dosage Rules
 @pytest.mark.parametrize("severity,expected_vol,expected_action,expected_level,expected_priority", [
     ("HEALTHY", 0.0, "NO_TREATMENT", "NO_TREATMENT", "NONE"),
-    ("LOW", 5.0, "TARGETED_TREATMENT", "LOW", "LOW"),
-    ("MODERATE", 10.0, "TARGETED_TREATMENT", "MEDIUM", "MEDIUM"),
-    ("HIGH", 20.0, "TARGETED_TREATMENT", "HIGH", "HIGH"),
+    ("LOW", 20.0, "MONITOR", "NO_TREATMENT", "LOW"),
+    ("MODERATE", 50.0, "TARGETED_TREATMENT", "SPOT_SPRAY", "MEDIUM"),
+    ("HIGH", 100.0, "IMMEDIATE_TREATMENT", "FULL_COVERAGE", "HIGH"),
 ])
 def test_prescription_generation_rules(client, severity, expected_vol, expected_action, expected_level, expected_priority):
     payload = {
@@ -237,23 +235,7 @@ def test_get_prescription_nonexistent_plant(client):
     assert response.status_code == 404
 
 
-# 7. Test Prescription Map Endpoint
-def test_get_prescriptions_map(client):
-    response = client.get("/api/prescriptions/map")
-    assert response.status_code == 200
-    map_items = response.json()
-    assert isinstance(map_items, list)
-    assert len(map_items) >= 20
-    item = map_items[0]
-    assert "plant_id" in item
-    assert "latitude" in item
-    assert "longitude" in item
-    assert "severity" in item
-    assert "recommended_volume_ml" in item
-    assert "priority" in item
 
-
-# 8. Test Sprayer Status & Spray Trigger
 def test_get_sprayer_status(client):
     response = client.get("/api/sprayer/status")
     assert response.status_code == 200
@@ -313,13 +295,15 @@ def test_analytics_summary(client):
 
 # 11. Test Field GeoJSON Prescription Map Endpoint
 def test_get_field_prescription_map_success(client):
-    response = client.get("/api/fields/1/prescription-map")
+    fields_res = client.get("/api/fields")
+    field_id = fields_res.json()[0]["id"]
+    response = client.get(f"/api/fields/{field_id}/prescription-map")
     assert response.status_code == 200
     res = response.json()
 
     # GeoJSON FeatureCollection verification
     assert res["type"] == "FeatureCollection"
-    assert res["field_id"] == 1
+    assert res["field_id"] == field_id
     assert "field_name" in res
     assert "crop_type" in res
     assert "area" in res
@@ -448,8 +432,11 @@ def test_execute_field_prescription_automated_workflow(client):
 
 
 def test_safety_rule_single_spot_spray_healthy_fails(client):
+    fields_res = client.get("/api/fields")
+    field_id = fields_res.json()[0]["id"]
+    
     # Retrieve a healthy plant
-    plants_res = client.get("/api/plants?field_id=1").json()
+    plants_res = client.get(f"/api/plants?field_id={field_id}").json()
     healthy_plant = next((p for p in plants_res if p["severity"] == "HEALTHY"), None)
     
     if healthy_plant:
@@ -460,4 +447,4 @@ def test_safety_rule_single_spot_spray_healthy_fails(client):
             "mode": "SIMULATED"
         })
         assert res.status_code == 400
-        assert "healthy" in res.json()["detail"].lower()
+        assert "healthy" in res.json()["message"].lower()

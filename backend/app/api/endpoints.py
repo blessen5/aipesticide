@@ -3,6 +3,7 @@ import os
 from typing import List, Optional, Union
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -31,6 +32,7 @@ from app.services.ai_service import ai_detector
 from app.services.prescription_service import prescription_engine
 from app.services.sprayer_service import sprayer_controller
 from app.services.demo_data_service import seed_demo_data
+from app.services.recommendation_engine import smart_recommendation_engine
 from app.config import settings
 
 router = APIRouter()
@@ -143,8 +145,22 @@ def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
         )
         features.append(feature)
 
+    healthy_count = 0
+    low_count = 0
+    moderate_count = 0
+    high_count = 0
+    
     for p in plants:
         sev = (p.severity or "HEALTHY").upper()
+        if sev == "HEALTHY":
+            healthy_count += 1
+        elif sev == "LOW":
+            low_count += 1
+        elif sev == "MODERATE":
+            moderate_count += 1
+        elif sev == "HIGH":
+            high_count += 1
+            
         rule = prescription_engine.DOSAGE_MAP.get(sev, prescription_engine.DOSAGE_MAP["HEALTHY"])
         vol = float(rule["recommended_volume_ml"])
         total_spray_vol += vol
@@ -166,12 +182,17 @@ def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
         )
         features.append(feature)
 
+    blanket_spray = len(plants) * 20.0
+    reduction = 0.0
+    if blanket_spray > 0:
+        reduction = round(((blanket_spray - total_spray_vol) / blanket_spray) * 100, 1)
+
     summary = FieldPrescriptionSummary(
         total_plants=len(plants),
-        healthy=0, low=0, moderate=0, high=0,
+        healthy=healthy_count, low=low_count, moderate=moderate_count, high=high_count,
         total_recommended_spray=round(total_spray_vol, 1),
-        blanket_spray_estimate=round(len(plants) * 20.0, 1),
-        estimated_reduction_percentage=0.0
+        blanket_spray_estimate=round(blanket_spray, 1),
+        estimated_reduction_percentage=reduction
     )
 
     return FieldPrescriptionMapResponse(
@@ -287,12 +308,13 @@ def generate_prescription(
     req: PrescriptionGenerateRequest,
     db: Session = Depends(get_db)
 ):
-    res = prescription_engine.generate(
+    # Phase 14: Use Smart Recommendation Engine
+    rec = smart_recommendation_engine.generate_recommendation(
+        db=db,
+        disease_name=req.disease,
         severity=req.severity,
-        disease=req.disease,
-        infection_percentage=req.infection_percentage,
-        crop_type=req.crop_type,
-        plant_id=req.plant_id
+        confidence=0.95, # In a real flow, this should come from AI result
+        crop_type=req.crop_type
     )
 
     int_plant_id = int(req.plant_id) if req.plant_id else None
@@ -301,15 +323,15 @@ def generate_prescription(
     presc = Prescription(
         plant_id=int_plant_id,
         zone_id=int_zone_id,
-        crop_type=res.get("crop_type", "Crop"),
-        disease=res["disease"],
-        infection_percentage=res["infection_percentage"],
-        severity=res["severity"],
-        recommended_action=res["recommended_action"],
-        spray_level=res["spray_level"],
-        recommended_volume_ml=res["recommended_volume_ml"],
-        priority=res["priority"],
-        reason=res.get("reason", ""),
+        crop_type=req.crop_type or "Crop",
+        disease=req.disease,
+        infection_percentage=req.infection_percentage,
+        severity=req.severity,
+        recommended_action=rec["recommended_action"],
+        spray_level=rec["spray_level"],
+        recommended_volume_ml=rec["recommended_volume_ml"],
+        priority=rec["priority"],
+        reason=rec["diagnosisSummary"] + " " + rec["recommendedNextStep"],
         created_at=datetime.utcnow()
     )
     db.add(presc)
@@ -320,16 +342,16 @@ def generate_prescription(
         id=presc.id,
         plant_id=req.plant_id,
         zone_id=req.zone_id,
-        crop_type=res.get("crop_type"),
-        disease=res["disease"],
-        infection_percentage=res["infection_percentage"],
-        severity=res["severity"],
-        recommended_action=res["recommended_action"],
-        spray_level=res["spray_level"],
-        recommended_volume_ml=res["recommended_volume_ml"],
-        priority=res["priority"],
-        reason=res.get("reason"),
-        disclaimer=res.get("disclaimer")
+        crop_type=req.crop_type,
+        disease=req.disease,
+        infection_percentage=req.infection_percentage,
+        severity=req.severity,
+        recommended_action=rec["recommended_action"],
+        spray_level=rec["spray_level"],
+        recommended_volume_ml=rec["recommended_volume_ml"],
+        priority=rec["priority"],
+        reason=rec.get("diagnosisSummary", "") + " " + rec.get("recommendedNextStep", ""),
+        disclaimer=rec.get("safetyWarning", "Adhere to safety guidelines.")
     )
 
 
@@ -358,15 +380,74 @@ def start_sprayer(db: Session = Depends(get_db)):
 def stop_sprayer(db: Session = Depends(get_db)):
     return sprayer_controller.stop(db)
 
+@router.post("/sprayer/spray", response_model=SprayerSprayResponse)
+def trigger_sprayer_spray(req: SprayerSprayRequest, db: Session = Depends(get_db)):
+    try:
+        return sprayer_controller.trigger_spray(
+            db=db,
+            plant_id=req.plant_id,
+            volume_ml=req.volume_ml,
+            mode=req.mode
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/sprayer/execute-prescription", response_model=ExecutePrescriptionResponse)
+def execute_field_prescription_endpoint(req: ExecutePrescriptionRequest, db: Session = Depends(get_db)):
+    return sprayer_controller.execute_field_prescription(
+        db=db,
+        field_id=req.field_id,
+        mode=req.mode
+    )
+
+class HardwareModeRequest(BaseModel):
+    mode: str
+
+@router.post("/hardware/mode")
+def set_hardware_mode(req: HardwareModeRequest):
+    return sprayer_controller.swap_driver(req.mode)
+
+class SimulateFaultRequest(BaseModel):
+    fault_type: str
+
+@router.post("/hardware/simulate-fault")
+def simulate_fault(req: SimulateFaultRequest):
+    # Only available in simulated mode
+    if getattr(sprayer_controller.driver, "mode", "SIMULATED") == "SIMULATED":
+        return sprayer_controller.driver.simulate_fault(req.fault_type)
+    return {"status": "REJECTED", "message": "Fault simulation only available in SIMULATED mode."}
+
 @router.get("/sprayer/history", response_model=List[SprayEventResponse])
 def get_spray_history(db: Session = Depends(get_db)):
     return db.query(SprayEvent).order_by(SprayEvent.timestamp.desc()).all()
 
 @router.get("/analytics/summary", response_model=AnalyticsSummaryResponse)
 def get_analytics_summary(db: Session = Depends(get_db)):
+    plants = db.query(Plant).all()
+    prescriptions = db.query(Prescription).all()
+    
+    total_plants = len(plants)
+    healthy_plants = sum(1 for p in plants if p.severity == 'HEALTHY' or p.status == 'HEALTHY')
+    low_infection = sum(1 for p in plants if p.severity == 'LOW' or p.status == 'LOW')
+    moderate_infection = sum(1 for p in plants if p.severity == 'MODERATE' or p.status == 'MODERATE')
+    high_infection = sum(1 for p in plants if p.severity == 'HIGH' or p.status == 'HIGH')
+    
+    total_spray_volume = sum(p.recommended_volume_ml for p in prescriptions if getattr(p, "recommended_volume_ml", None) is not None)
+    
+    untreated_volume_estimate = total_plants * 100.0
+    estimated_reduction_percentage = 0.0
+    if untreated_volume_estimate > 0:
+        estimated_reduction_percentage = max(0, ((untreated_volume_estimate - total_spray_volume) / untreated_volume_estimate) * 100)
+        
     return AnalyticsSummaryResponse(
-        total_plants=0, healthy_plants=0, low_infection=0, moderate_infection=0, high_infection=0,
-        total_spray_volume=0, untreated_volume_estimate=0, estimated_reduction_percentage=0
+        total_plants=total_plants,
+        healthy_plants=healthy_plants,
+        low_infection=low_infection,
+        moderate_infection=moderate_infection,
+        high_infection=high_infection,
+        total_spray_volume=total_spray_volume,
+        untreated_volume_estimate=untreated_volume_estimate,
+        estimated_reduction_percentage=estimated_reduction_percentage
     )
 
 @router.post("/demo/seed", response_model=DemoSeedResponse)

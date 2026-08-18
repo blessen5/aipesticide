@@ -191,6 +191,17 @@ export interface SprayerStatus {
   progress_pct?: number;
   total_plants?: number;
   completed_plants?: number;
+  
+  // Hardware Telemetry
+  nodeId?: string;
+  pump?: string;
+  valve?: string;
+  active_zone?: string | null;
+  flow_rate?: number;
+  pressure?: string;
+  emergency_stopped?: boolean;
+  fault?: string | null;
+
   disclaimer?: string;
 }
 

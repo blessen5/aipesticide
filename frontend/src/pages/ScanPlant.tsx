@@ -224,6 +224,7 @@ export const ScanPlant: React.FC = () => {
 
   // 1. Core AI Diagnosis (Step 4 & 5)
   const handleScanPlant = async () => {
+    console.log('handleScanPlant clicked!', { previewUrl, selectedFile, selectedZoneId });
     if (!previewUrl && !selectedFile) {
       setError('Please take a photo, upload an image, or pick a demo sample first.');
       return;
