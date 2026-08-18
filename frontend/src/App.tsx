@@ -13,8 +13,16 @@ import { AuditHistory } from './pages/AuditHistory';
 import { StorageRegistry } from './pages/StorageRegistry';
 import { Analytics } from './pages/Analytics';
 import { Demo } from './pages/Demo';
+import { KnowledgeBaseAdmin } from './pages/KnowledgeBaseAdmin';
+import { Login } from './pages/Login';
 
 export const App: React.FC = () => {
+  const [role, setRole] = React.useState<string | null>(localStorage.getItem('userRole'));
+
+  if (!role) {
+    return <Login onLogin={setRole} />;
+  }
+
   return (
     <BrowserRouter>
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
@@ -32,6 +40,7 @@ export const App: React.FC = () => {
             <Route path="/storage" element={<StorageRegistry />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/demo" element={<Demo />} />
+            <Route path="/admin/knowledge" element={<KnowledgeBaseAdmin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

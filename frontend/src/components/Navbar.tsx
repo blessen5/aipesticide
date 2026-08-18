@@ -14,7 +14,8 @@ import {
   WifiOff,
   Target,
   ShieldAlert,
-  FlaskConical
+  FlaskConical,
+  Database
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -61,6 +62,7 @@ export const Navbar: React.FC = () => {
     { path: '/audit', label: 'Audit', icon: ShieldAlert },
     { path: '/storage', label: 'Storage', icon: FlaskConical },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/admin/knowledge', label: 'Admin', icon: Database },
   ];
 
   return (

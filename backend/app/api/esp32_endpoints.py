@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.services.sprayer_service import sprayer_controller, _probe_esp32, ESP32HttpDriver
+from app.services.sprayer_service import sprayer_controller, _probe_esp32, ESP32HardwareController
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -193,32 +193,31 @@ def hardware_command(req: HardwareCommandRequest):
     esp32_response = None
 
     try:
-        if cmd == "START":
-            # No DB needed for raw hardware command
-            if isinstance(sprayer_controller.driver, ESP32HttpDriver):
-                esp32_response = sprayer_controller.driver._post_command("START")
-            result_msg = "START command sent."
+        if cmd == "OPEN_VALVE":
+            target = req.zone_id if req.zone_id else req.plant_id
+            esp32_response = sprayer_controller.driver.open_valve(target)
+            result_msg = f"OPEN_VALVE command sent for {target}."
 
-        elif cmd == "STOP":
+        elif cmd == "CLOSE_VALVE":
+            target = req.zone_id if req.zone_id else req.plant_id
+            esp32_response = sprayer_controller.driver.close_valve(target)
+            result_msg = f"CLOSE_VALVE command sent for {target}."
+
+        elif cmd == "START_PUMP":
+            esp32_response = sprayer_controller.driver.start_pump()
+            result_msg = "START_PUMP command sent."
+
+        elif cmd == "STOP_PUMP":
+            esp32_response = sprayer_controller.driver.stop_pump()
+            result_msg = "STOP_PUMP command sent."
+
+        elif cmd == "STOP" or cmd == "EMERGENCY_STOP":
             stop_result = sprayer_controller.driver.emergency_stop()
             esp32_response = stop_result
-            result_msg = "STOP command sent — all actuators halted."
-
-        elif cmd == "MOVE":
-            # Pass zone_id if available, fallback to plant_id
-            target = req.zone_id if req.zone_id else req.plant_id
-            move_result = sprayer_controller.driver.move_to(target, 0.0, 0.0)
-            esp32_response = move_result
-            result_msg = "MOVE command sent."
-
-        elif cmd == "SPRAY":
-            target = req.zone_id if req.zone_id else req.plant_id
-            spray_result = sprayer_controller.driver.spray(target, req.volume_ml)
-            esp32_response = spray_result
-            result_msg = f"SPRAY command sent — {req.volume_ml} mL for target {target}."
+            result_msg = "EMERGENCY_STOP command sent — all actuators halted."
 
         else:
-            result_msg = "Command dispatched."
+            result_msg = f"Command {cmd} not supported directly."
 
     except Exception as exc:
         logger.error("[HW Command] %s failed: %s", cmd, exc)

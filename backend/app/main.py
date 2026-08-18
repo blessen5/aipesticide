@@ -1,14 +1,17 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from datetime import datetime
 
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.api.endpoints import router as api_router
 from app.api.esp32_endpoints import hardware_router
 from app.api.demo_router import demo_router
+from app.api.knowledge_endpoints import router as knowledge_router
 from app.services.demo_data_service import seed_demo_data
 
 
@@ -35,6 +38,42 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Phase 36: Structured Error Handling
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred.",
+            "details": str(exc),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "code": "HTTP_ERROR",
+            "message": exc.detail,
+            "details": "",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    )
+
+# Phase 37: Authorization Roles Mock
+def get_current_user_role(request: Request):
+    # In a real app this would decode a JWT. For the prototype, we assume Farmer
+    role = request.headers.get("X-User-Role", "FARMER")
+    return role.upper()
+
+def require_admin(role: str = Depends(get_current_user_role)):
+    if role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin permissions required.")
+    return role
+
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +95,9 @@ app.include_router(hardware_router, prefix=settings.API_V1_STR)
 
 # Include Demo Mode router (SIH 2026 demo reset & status)
 app.include_router(demo_router, prefix=settings.API_V1_STR)
+
+# Include Knowledge Base router
+app.include_router(knowledge_router, prefix=settings.API_V1_STR + "/knowledge")
 
 
 @app.get("/")

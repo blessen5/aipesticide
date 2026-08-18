@@ -169,6 +169,17 @@ class SprayerStatusResponse(BaseModel):
     progress_pct: Optional[float] = 0.0
     total_plants: Optional[int] = 0
     completed_plants: Optional[int] = 0
+    
+    # Hardware Telemetry
+    nodeId: str = "UNKNOWN"
+    pump: str = "OFF"
+    valve: str = "CLOSED"
+    active_zone: Optional[str] = None
+    flow_rate: float = 0.0
+    pressure: str = "UNKNOWN"
+    emergency_stopped: bool = False
+    fault: Optional[str] = None
+
     disclaimer: str = "SIMULATION MODE: Operating in calibrated local demo mode for prototype evaluation."
 
 class SprayerStartResponse(BaseModel):

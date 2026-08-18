@@ -16,7 +16,12 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
-  Zap
+  Zap,
+  Cpu,
+  Power,
+  Droplets,
+  Gauge,
+  Siren
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -89,6 +94,24 @@ export const Dashboard: React.FC = () => {
     loadData();
   };
 
+  const handleModeChange = async (mode: string) => {
+    try {
+      await api.setHardwareMode(mode);
+      loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleFaultInjection = async (fault: string) => {
+    try {
+      await api.simulateFault(fault);
+      loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Severity Distribution Data for Pie Chart
   const severityData = summary ? [
     { name: 'Healthy (0 mL)', value: summary.healthy_plants, color: '#22c55e' },
@@ -153,6 +176,16 @@ export const Dashboard: React.FC = () => {
                     <span>API OFFLINE</span>
                   </>
                 )}
+              </div>
+
+              {/* Hardware Simulation Badge */}
+              <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                sprayer?.mode === 'SIMULATED' 
+                  ? 'bg-amber-950/80 border-amber-500/40 text-amber-400'
+                  : 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+              }`}>
+                <Cpu className="w-3.5 h-3.5" />
+                <span>{sprayer?.mode === 'SIMULATED' ? '🟡 HARDWARE SIMULATION' : '🟢 PHYSICAL ESP32'}</span>
               </div>
             </div>
 
@@ -453,15 +486,91 @@ export const Dashboard: React.FC = () => {
                 />
               </div>
             </div>
+
+            {/* Hardware Telemetry Specifics */}
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">Node ID</span>
+                <span className="text-xs font-bold text-white">{sprayer?.nodeId || 'UNKNOWN'}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">Pump</span>
+                <span className={`text-xs font-bold ${sprayer?.pump === 'ON' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {sprayer?.pump || 'OFF'}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">Valve</span>
+                <span className={`text-xs font-bold ${sprayer?.valve === 'OPEN' ? 'text-cyan-400' : 'text-slate-400'}`}>
+                  {sprayer?.valve || 'CLOSED'}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">Active Zone</span>
+                <span className="text-xs font-bold text-white">{sprayer?.active_zone || 'NONE'}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">Flow</span>
+                <span className="text-xs font-bold text-white">{sprayer?.flow_rate?.toFixed(1) || '0.0'} L/m</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">Pressure</span>
+                <span className={`text-xs font-bold ${sprayer?.pressure === 'HIGH' ? 'text-rose-400' : sprayer?.pressure === 'LOW' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {sprayer?.pressure || 'NORMAL'}
+                </span>
+              </div>
+            </div>
+            {sprayer?.emergency_stopped && (
+              <div className="p-2 bg-rose-950/50 border border-rose-500/50 rounded-lg flex items-center space-x-2">
+                <Siren className="w-4 h-4 text-rose-500 animate-pulse" />
+                <span className="text-xs font-bold text-rose-400">EMERGENCY STOP ENGAGED</span>
+              </div>
+            )}
+            {sprayer?.fault && (
+              <div className="p-2 bg-amber-950/50 border border-amber-500/50 rounded-lg flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <span className="text-xs font-bold text-amber-400">Fault: {sprayer.fault}</span>
+              </div>
+            )}
           </div>
 
-          <Link
-            to="/sprayer"
-            className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center space-x-1.5 transition"
-          >
-            <span>Open Sprayer Control</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex flex-col space-y-2 mt-4">
+            <Link
+              to="/sprayer"
+              className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center space-x-1.5 transition"
+            >
+              <span>Open Sprayer Control</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            
+            {sprayer?.mode === 'SIMULATED' && (
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleFaultInjection('FLOW_SENSOR_ERROR')}
+                  className="flex-1 py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900 border border-amber-500/30 text-amber-400 text-[10px] font-bold"
+                >
+                  Inject Flow Fault
+                </button>
+                <button
+                  onClick={() => handleFaultInjection('VALVE_STUCK_CLOSED')}
+                  className="flex-1 py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900 border border-amber-500/30 text-amber-400 text-[10px] font-bold"
+                >
+                  Inject Valve Fault
+                </button>
+              </div>
+            )}
+            
+            <button
+              onClick={() => handleModeChange(sprayer?.mode === 'SIMULATED' ? 'PHYSICAL' : 'SIMULATED')}
+              className={`w-full py-2 rounded-xl font-semibold text-xs transition border ${
+                sprayer?.mode === 'SIMULATED'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  : 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-400 border-amber-500/30'
+              }`}
+            >
+              {sprayer?.mode === 'SIMULATED' ? 'Switch to Physical Hardware' : 'Switch to Simulation Mode'}
+            </button>
+          </div>
         </div>
 
         {/* Quick Action: Scan Leaf */}

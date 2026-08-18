@@ -11,13 +11,23 @@ import {
   ExecutePrescriptionResponse,
   Zone
 } from '../types';
+// Custom fetch wrapper to include Authorization header
+const fetchWithAuth = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const role = localStorage.getItem('userRole') || 'FARMER';
+  const newInit = init || {};
+  newInit.headers = {
+    ...newInit.headers,
+    'X-User-Role': role,
+  };
+  return fetch(input, newInit);
+};
 
 const API_BASE = '/api';
 
 // Offline caching utility
 const offlineGet = async <T>(url: string, cacheKey: string): Promise<T> => {
   try {
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     if (!res.ok) throw new Error('Network response was not ok');
     const data = await res.json();
     localStorage.setItem(cacheKey, JSON.stringify(data));
@@ -35,14 +45,14 @@ const offlineGet = async <T>(url: string, cacheKey: string): Promise<T> => {
 export const api = {
   // 1. Health check
   getHealth: async (): Promise<{ status: string; service: string }> => {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await fetchWithAuth(`${API_BASE}/health`);
     if (!res.ok) throw new Error('API is currently unreachable');
     return res.json();
   },
 
   // 2. Analytics Summary
   getAnalyticsSummary: async (): Promise<AnalyticsSummary> => {
-    const res = await fetch(`${API_BASE}/analytics/summary`);
+    const res = await fetchWithAuth(`${API_BASE}/analytics/summary`);
     if (!res.ok) throw new Error('Failed to fetch analytics summary');
     return res.json();
   },
@@ -60,13 +70,13 @@ export const api = {
   // 4. Plants
   getPlants: async (fieldId?: number): Promise<Plant[]> => {
     const url = fieldId ? `${API_BASE}/plants?field_id=${fieldId}` : `${API_BASE}/plants`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     if (!res.ok) throw new Error('Failed to fetch plants');
     return res.json();
   },
 
   createPlant: async (plantData: any): Promise<Plant> => {
-    const res = await fetch(`${API_BASE}/plants`, {
+    const res = await fetchWithAuth(`${API_BASE}/plants`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(plantData)
@@ -80,14 +90,14 @@ export const api = {
 
   // 5. Field Prescription GeoJSON Map
   getFieldPrescriptionMap: async (fieldId: number): Promise<FieldPrescriptionMapResponse> => {
-    const res = await fetch(`${API_BASE}/fields/${fieldId}/prescription-map`);
+    const res = await fetchWithAuth(`${API_BASE}/fields/${fieldId}/prescription-map`);
     if (!res.ok) throw new Error(`Failed to load prescription map for field #${fieldId}`);
     return res.json();
   },
 
   // 6. AI Disease Detection
   analyzePlantImage: async (formData: FormData): Promise<DetectionAnalyzeResponse> => {
-    const res = await fetch(`${API_BASE}/detection/analyze`, {
+    const res = await fetchWithAuth(`${API_BASE}/ai/analyze`, {
       method: 'POST',
       body: formData,
     });
@@ -106,7 +116,7 @@ export const api = {
     infection_percentage: number;
     severity: string;
   }): Promise<PrescriptionGenerateResponse> => {
-    const res = await fetch(`${API_BASE}/prescriptions/generate`, {
+    const res = await fetchWithAuth(`${API_BASE}/prescriptions/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -120,14 +130,14 @@ export const api = {
 
   // 8. Prescriptions List
   getPrescriptions: async (): Promise<Prescription[]> => {
-    const res = await fetch(`${API_BASE}/prescriptions`);
+    const res = await fetchWithAuth(`${API_BASE}/prescriptions`);
     if (!res.ok) throw new Error('Failed to fetch prescriptions');
     return res.json();
   },
 
   // 9. Prescription by Plant ID
   getPrescriptionByPlantId: async (plantId: number): Promise<Prescription> => {
-    const res = await fetch(`${API_BASE}/prescriptions/${plantId}`);
+    const res = await fetchWithAuth(`${API_BASE}/prescriptions/${plantId}`);
     if (!res.ok) throw new Error(`Prescription for plant #${plantId} not found`);
     return res.json();
   },
@@ -139,21 +149,21 @@ export const api = {
 
   // 11. Start Sprayer
   startSprayer: async (): Promise<{ status: string; message: string; mode: string }> => {
-    const res = await fetch(`${API_BASE}/sprayer/start`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/sprayer/start`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to start sprayer master controller');
     return res.json();
   },
 
   // 12. Stop Sprayer
   stopSprayer: async (): Promise<{ status: string; message: string }> => {
-    const res = await fetch(`${API_BASE}/sprayer/stop`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/sprayer/stop`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to stop sprayer master controller');
     return res.json();
   },
 
   // 13. Execute Field Prescription Mission
   executeFieldPrescription: async (fieldId: number, mode: string = 'SIMULATED'): Promise<ExecutePrescriptionResponse> => {
-    const res = await fetch(`${API_BASE}/sprayer/execute-prescription`, {
+    const res = await fetchWithAuth(`${API_BASE}/sprayer/execute-prescription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ field_id: fieldId, mode })
@@ -167,7 +177,7 @@ export const api = {
 
   // 14. Trigger Single Precision Spray
   triggerSpray: async (plantId: number | string, volumeMl: number, mode: string = 'SIMULATED'): Promise<SprayEvent> => {
-    const res = await fetch(`${API_BASE}/sprayer/spray`, {
+    const res = await fetchWithAuth(`${API_BASE}/sprayer/spray`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -183,22 +193,48 @@ export const api = {
     return res.json();
   },
 
+  setHardwareMode: async (mode: string): Promise<any> => {
+    const res = await fetchWithAuth(`${API_BASE}/hardware/mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to set hardware mode');
+    }
+    return res.json();
+  },
+
+  simulateFault: async (fault_type: string): Promise<any> => {
+    const res = await fetchWithAuth(`${API_BASE}/hardware/simulate-fault`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fault_type })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to simulate fault');
+    }
+    return res.json();
+  },
+
   // 15. Spray History
   getSprayHistory: async (): Promise<SprayEvent[]> => {
-    const res = await fetch(`${API_BASE}/sprayer/history`);
+    const res = await fetchWithAuth(`${API_BASE}/sprayer/history`);
     if (!res.ok) throw new Error('Failed to fetch spray event history');
     return res.json();
   },
 
   // 16. Reseed / Reset Demo Data
   seedDemoData: async () => {
-    const res = await fetch(`${API_BASE}/demo/reset`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/demo/reset`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset and seed demo dataset');
     return res.json();
   },
 
   resetDemo: async () => {
-    const res = await fetch(`${API_BASE}/demo/reset`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/demo/reset`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset demo dataset');
     return res.json();
   },

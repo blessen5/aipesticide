@@ -1,5 +1,7 @@
 import logging
 import uuid
+import json
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
@@ -22,107 +24,165 @@ class SprayerStateEnum(str, Enum):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Abstract Driver Interface
+# Abstract Driver Interface (HardwareController)
 # ──────────────────────────────────────────────────────────────────────────────
 
-class BaseSprayerDriver(ABC):
+class HardwareController(ABC):
     """
-    Abstract driver interface for agricultural sprayers.
+    Abstract driver interface for agricultural sprayer hardware.
     Allows seamless hot-swapping between the Simulated local driver and ESP32 hardware driver.
     """
 
     @abstractmethod
-    def get_telemetry(self) -> Dict[str, Any]:
-        """Fetch current hardware telemetry (battery, tank level, nozzle status)."""
-        pass
+    def connect(self) -> bool: pass
 
     @abstractmethod
-    def move_to(self, plant_code: str, latitude: float, longitude: float) -> Dict[str, Any]:
-        """Simulate or command actuator/chassis movement to target plant coordinate."""
-        pass
+    def get_status(self) -> Dict[str, Any]: pass
 
     @abstractmethod
-    def spray(self, plant_code: str, volume_ml: float) -> Dict[str, Any]:
-        """Execute solenoid pulse discharge for the specified chemical volume."""
-        pass
+    def get_telemetry(self) -> Dict[str, Any]: pass
 
     @abstractmethod
-    def emergency_stop(self) -> Dict[str, Any]:
-        """Trigger immediate fail-safe stop across all actuators."""
-        pass
+    def open_valve(self, zone_id: str) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def close_valve(self, zone_id: str) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def start_pump(self) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def stop_pump(self) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def emergency_stop(self) -> Dict[str, Any]: pass
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Simulated Driver (unchanged — simulator is always preserved)
+# Simulated Hardware Controller
 # ──────────────────────────────────────────────────────────────────────────────
 
-class SimulatedSprayerDriver(BaseSprayerDriver):
+class SimulationHardwareController(HardwareController):
     """
-    Deterministic local simulation driver for SIH Hackathon presentation.
-    Simulates movement, solenoid firing, battery consumption, and fluid drawdown locally.
-    This driver is ALWAYS available — it is the safe fallback when no ESP32 is connected.
+    Deterministic local simulation driver for presentations.
+    Simulates pump, valve, flow, pressure, and faults locally.
     """
 
     def __init__(self):
         self.mode = "SIMULATED"
+        self.node_id = "NODE-01"
         self.battery_level = 95
         self.fluid_level_pct = 90
-        self.current_state = SprayerStateEnum.READY
+        
+        # Hardware States
+        self.pump_state = "OFF"
+        self.valve_state = "CLOSED"
+        self.active_zone = None
+        self.flow_rate = 0.0
+        self.pressure_state = "NORMAL"
+        self.emergency_stopped = False
+        self.fault_state = None
 
-    def get_telemetry(self) -> Dict[str, Any]:
+    def connect(self) -> bool:
+        return True
+
+    def get_status(self) -> Dict[str, Any]:
         return {
             "mode": self.mode,
-            "status": self.current_state.value,
+            "nodeId": self.node_id,
+            "status": "ONLINE - SIMULATED" if not self.fault_state else "FAULT",
+            "fault": self.fault_state
+        }
+
+    def get_telemetry(self) -> Dict[str, Any]:
+        # Dynamic flow simulation if pump is ON and Valve is OPEN and no fault
+        if self.pump_state == "ON" and self.valve_state == "OPEN" and not self.fault_state and not self.emergency_stopped:
+            # Simple simulation: jump to 15.0 L/min
+            self.flow_rate = 15.0
+            self.fluid_level_pct = max(0, self.fluid_level_pct - 1)
+        else:
+            self.flow_rate = 0.0
+
+        return {
+            "mode": self.mode,
+            "nodeId": self.node_id,
+            "pump": self.pump_state,
+            "valve": self.valve_state,
+            "active_zone": self.active_zone,
+            "flow_rate": self.flow_rate,
+            "pressure": self.pressure_state,
             "battery_level": self.battery_level,
             "fluid_level_pct": self.fluid_level_pct,
+            "emergency_stopped": self.emergency_stopped,
+            "fault": self.fault_state,
             "disclaimer": "SIMULATION MODE: Local software simulation for prototype demonstration."
         }
 
-    def move_to(self, plant_code: str, latitude: float, longitude: float) -> Dict[str, Any]:
-        self.current_state = SprayerStateEnum.MOVING
-        # Simulated battery decrement per traverse
-        self.battery_level = max(10, self.battery_level - 1)
-        return {
-            "action": "MOVING",
-            "plant_code": plant_code,
-            "target_coordinate": [latitude, longitude],
-            "status": "ARRIVED_AT_PLANT"
-        }
+    def open_valve(self, zone_id: str) -> Dict[str, Any]:
+        if self.emergency_stopped or self.fault_state:
+            return {"status": "REJECTED", "message": "Cannot open valve in fault or emergency state."}
+        self.valve_state = "OPEN"
+        self.active_zone = zone_id
+        return {"action": "VALVE_OPEN", "zone": zone_id, "status": "SUCCESS"}
 
-    def spray(self, plant_code: str, volume_ml: float) -> Dict[str, Any]:
-        self.current_state = SprayerStateEnum.SPRAYING
-        # Simulated fluid tank drawdown
-        fluid_used = max(1, int(volume_ml / 5.0))
-        self.fluid_level_pct = max(5, self.fluid_level_pct - fluid_used)
+    def close_valve(self, zone_id: str) -> Dict[str, Any]:
+        self.valve_state = "CLOSED"
+        self.active_zone = None
+        self.flow_rate = 0.0
+        return {"action": "VALVE_CLOSED", "zone": zone_id, "status": "SUCCESS"}
+
+    def start_pump(self) -> Dict[str, Any]:
+        if self.emergency_stopped or self.fault_state:
+            return {"status": "REJECTED", "message": "Cannot start pump in fault or emergency state."}
+        self.pump_state = "ON"
         self.battery_level = max(10, self.battery_level - 1)
-        return {
-            "action": "SPRAYING",
-            "plant_code": plant_code,
-            "volume_ml": volume_ml,
-            "status": "DISCHARGE_COMPLETED"
-        }
+        return {"action": "PUMP_START", "status": "SUCCESS"}
+
+    def stop_pump(self) -> Dict[str, Any]:
+        self.pump_state = "OFF"
+        self.flow_rate = 0.0
+        return {"action": "PUMP_STOP", "status": "SUCCESS"}
 
     def emergency_stop(self) -> Dict[str, Any]:
-        self.current_state = SprayerStateEnum.IDLE
-        return {
-            "action": "STOP",
-            "status": "IDLE",
-            "message": "All actuators halted in safe idle mode."
-        }
+        self.emergency_stopped = True
+        self.pump_state = "OFF"
+        self.valve_state = "CLOSED"
+        self.flow_rate = 0.0
+        return {"action": "EMERGENCY_STOP", "status": "IDLE", "message": "All actuators halted."}
+        
+    def simulate_fault(self, fault_type: str) -> Dict[str, Any]:
+        if fault_type == "FLOW":
+            self.fault_state = "FLOW FAULT DETECTED"
+            self.flow_rate = 0.0
+        elif fault_type == "PRESSURE":
+            self.fault_state = "PRESSURE FAULT DETECTED"
+            self.pressure_state = "HIGH"
+        elif fault_type == "OFFLINE":
+            self.fault_state = "HARDWARE OFFLINE"
+        elif fault_type == "EMERGENCY":
+            return self.emergency_stop()
+        elif fault_type == "RESET":
+            self.fault_state = None
+            self.emergency_stopped = False
+            self.pressure_state = "NORMAL"
+            return {"status": "RESET", "message": "Hardware faults cleared."}
+            
+        # Any fault turns off actuators
+        if fault_type in ["FLOW", "PRESSURE", "OFFLINE"]:
+            self.pump_state = "OFF"
+            self.valve_state = "CLOSED"
+            self.flow_rate = 0.0
+            
+        return {"status": "FAULT_INJECTED", "fault": self.fault_state}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ESP32 HTTP Driver — Real Hardware Integration
+# ESP32 Hardware Controller — Real Hardware Integration
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _probe_esp32(host: str, port: int, timeout: float) -> bool:
-    """
-    Attempt a lightweight GET /api/health ping to the ESP32.
-    Returns True if the device is reachable and responds, False otherwise.
-    Called at startup and before hot-swap to verify connectivity.
-    """
     try:
-        import requests  # lazy import — only needed when ESP32 mode is requested
+        import requests
         url = f"http://{host}:{port}/api/health"
         resp = requests.get(url, timeout=timeout)
         data = resp.json()
@@ -131,160 +191,115 @@ def _probe_esp32(host: str, port: int, timeout: float) -> bool:
         logger.warning("[ESP32] Probe failed for %s:%s — %s", host, port, exc)
         return False
 
-
-class ESP32HttpDriver(BaseSprayerDriver):
+class ESP32HardwareController(HardwareController):
     """
     Real hardware integration driver for ESP32 Microcontroller via Wi-Fi HTTP REST.
-
-    Firmware endpoints used:
-      GET  http://<host>/api/health    → connectivity probe
-      GET  http://<host>/api/status    → full telemetry
-      POST http://<host>/api/command   → {command, plant_id, volume_ml}
-        commands: START | STOP | MOVE | SPRAY
-
-    Prototype safety note:
-      The firmware drives a WATER PUMP ONLY — no real pesticide during testing.
     """
 
     def __init__(self, host: str, port: int, timeout: float):
-        import requests  # ensure available
+        import requests
         self._requests = requests
         self.host = host
         self.port = port
         self.timeout = timeout
         self.mode = "ESP32"
-        # Mirror telemetry fields for SprayerController compatibility
-        self.battery_level: int = 0
-        self.fluid_level_pct: int = 0
-        self.current_state = SprayerStateEnum.READY
+        self.node_id = "ESP32-PROD"
+        
+        self.battery_level = 0
+        self.fluid_level_pct = 0
+        self.pump_state = "OFF"
+        self.valve_state = "CLOSED"
+        self.active_zone = None
+        self.flow_rate = 0.0
+        self.pressure_state = "NORMAL"
 
     def _url(self, path: str) -> str:
         return f"http://{self.host}:{self.port}{path}"
 
-    def _post_command(self, command: str, plant_code: str = "", volume_ml: float = 0.0) -> Dict[str, Any]:
-        """Send a command to the ESP32 /api/command endpoint."""
-        payload = {
-            "command": command,
-            "plant_id": plant_code,
-            "volume_ml": volume_ml
-        }
+    def _post_command(self, command: str, **kwargs) -> Dict[str, Any]:
+        payload = {"command": command, **kwargs}
         logger.info("[ESP32] → POST /api/command  %s", payload)
-        resp = self._requests.post(
-            self._url("/api/command"),
-            json=payload,
-            timeout=self.timeout
-        )
+        resp = self._requests.post(self._url("/api/command"), json=payload, timeout=self.timeout)
         resp.raise_for_status()
         data = resp.json()
         logger.info("[ESP32] ← %s", data)
         return data
 
+    def connect(self) -> bool:
+        return _probe_esp32(self.host, self.port, self.timeout)
+
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "nodeId": self.node_id,
+            "status": "ONLINE" if self.connect() else "OFFLINE"
+        }
+
     def get_telemetry(self) -> Dict[str, Any]:
-        """Fetch live telemetry from ESP32 /api/status."""
         try:
             resp = self._requests.get(self._url("/api/status"), timeout=self.timeout)
             resp.raise_for_status()
             data = resp.json()
-            # Sync local mirrors so SprayerController can read them
+            
             self.battery_level = int(data.get("battery_pct", 0))
             self.fluid_level_pct = int(data.get("fluid_pct", 0))
+            self.pump_state = "ON" if data.get("pump_active") else "OFF"
+            self.valve_state = "OPEN" if data.get("servo_open") else "CLOSED"
+            
             return {
                 "mode": "ESP32",
-                "device_ip": self.host,
-                "status": data.get("status", "UNKNOWN"),
+                "nodeId": self.node_id,
+                "pump": self.pump_state,
+                "valve": self.valve_state,
+                "active_zone": self.active_zone,
+                "flow_rate": float(data.get("flow_l_min", 0.0)),
+                "pressure": "NORMAL",
                 "battery_level": self.battery_level,
                 "fluid_level_pct": self.fluid_level_pct,
-                "pump_active": data.get("pump_active", False),
-                "servo_open": data.get("servo_open", False),
-                "uptime_s": data.get("uptime_s", 0),
-                "rssi_dbm": data.get("rssi_dbm", 0),
-                "firmware_version": data.get("firmware_version", "unknown"),
-                "last_command": data.get("last_command", ""),
-                "total_spray_ms": data.get("total_spray_ms", 0),
-                "prototype_note": data.get("prototype_note", "")
+                "emergency_stopped": False,
+                "fault": None
             }
         except Exception as exc:
             logger.error("[ESP32] get_telemetry failed: %s", exc)
             return {
                 "mode": "ESP32",
-                "device_ip": self.host,
                 "status": "UNREACHABLE",
                 "error": str(exc)
             }
 
-    def move_to(self, plant_code: str, latitude: float, longitude: float) -> Dict[str, Any]:
-        """Send MOVE command to ESP32."""
-        try:
-            self.current_state = SprayerStateEnum.MOVING
-            result = self._post_command("MOVE", plant_code)
-            self.current_state = SprayerStateEnum.READY
-            return {
-                "action": "MOVING",
-                "plant_code": plant_code,
-                "target_coordinate": [latitude, longitude],
-                "status": result.get("status", "ARRIVED"),
-                "esp32_response": result
-            }
-        except Exception as exc:
-            logger.error("[ESP32] move_to failed: %s", exc)
-            self.current_state = SprayerStateEnum.ERROR
-            raise RuntimeError(f"ESP32 MOVE command failed: {exc}") from exc
+    def open_valve(self, zone_id: str) -> Dict[str, Any]:
+        self.active_zone = zone_id
+        return self._post_command("VALVE_OPEN", zone_id=zone_id)
 
-    def spray(self, plant_code: str, volume_ml: float) -> Dict[str, Any]:
-        """Send SPRAY command to ESP32. Prototype: activates water pump only."""
-        try:
-            self.current_state = SprayerStateEnum.SPRAYING
-            result = self._post_command("SPRAY", plant_code, volume_ml)
-            self.current_state = SprayerStateEnum.READY
-            # Update fluid level from response (approximate)
-            fluid_used = max(1, int(volume_ml / 5))
-            self.fluid_level_pct = max(5, self.fluid_level_pct - fluid_used)
-            return {
-                "action": "SPRAYING",
-                "plant_code": plant_code,
-                "volume_ml": volume_ml,
-                "status": result.get("status", "COMPLETED"),
-                "duration_ms": result.get("duration_ms", 0),
-                "esp32_response": result
-            }
-        except Exception as exc:
-            logger.error("[ESP32] spray failed: %s", exc)
-            self.current_state = SprayerStateEnum.ERROR
-            raise RuntimeError(f"ESP32 SPRAY command failed: {exc}") from exc
+    def close_valve(self, zone_id: str) -> Dict[str, Any]:
+        self.active_zone = None
+        return self._post_command("VALVE_CLOSE", zone_id=zone_id)
+
+    def start_pump(self) -> Dict[str, Any]:
+        return self._post_command("PUMP_START")
+
+    def stop_pump(self) -> Dict[str, Any]:
+        return self._post_command("PUMP_STOP")
 
     def emergency_stop(self) -> Dict[str, Any]:
-        """Send STOP command to ESP32."""
         try:
-            result = self._post_command("STOP")
-            self.current_state = SprayerStateEnum.IDLE
-            return {
-                "action": "STOP",
-                "status": "IDLE",
-                "message": "ESP32 actuators halted via hardware STOP command.",
-                "esp32_response": result
-            }
+            return self._post_command("STOP")
         except Exception as exc:
             logger.error("[ESP32] emergency_stop failed: %s", exc)
-            # Fail safe: mark error regardless
-            self.current_state = SprayerStateEnum.ERROR
-            return {
-                "action": "STOP",
-                "status": "ERROR",
-                "message": f"STOP command failed — physical check required: {exc}"
-            }
+            return {"action": "STOP", "status": "ERROR", "message": str(exc)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Driver Factory — Auto-selects based on SPRAYER_MODE with fallback
 # ──────────────────────────────────────────────────────────────────────────────
 
-def get_driver_for_mode() -> BaseSprayerDriver:
+def get_driver_for_mode() -> HardwareController:
     """
     Factory that returns the appropriate sprayer driver based on SPRAYER_MODE env-var.
 
     Behaviour:
-      SPRAYER_MODE=SIMULATED (default) → SimulatedSprayerDriver
-      SPRAYER_MODE=ESP32               → probes ESP32; if unreachable → SimulatedSprayerDriver
+      SPRAYER_MODE=SIMULATED (default) → SimulationHardwareController
+      SPRAYER_MODE=ESP32               → probes ESP32; if unreachable → SimulationHardwareController
 
     The simulator is ALWAYS available as a fallback — this function never raises.
     """
@@ -297,18 +312,18 @@ def get_driver_for_mode() -> BaseSprayerDriver:
         )
         reachable = _probe_esp32(settings.ESP32_HOST, settings.ESP32_PORT, settings.ESP32_TIMEOUT)
         if reachable:
-            logger.info("[Sprayer] ESP32 connected ✓  →  using ESP32HttpDriver")
-            return ESP32HttpDriver(settings.ESP32_HOST, settings.ESP32_PORT, settings.ESP32_TIMEOUT)
+            logger.info("[Sprayer] ESP32 connected ✓  →  using ESP32HardwareController")
+            return ESP32HardwareController(settings.ESP32_HOST, settings.ESP32_PORT, settings.ESP32_TIMEOUT)
         else:
             logger.warning(
                 "[Sprayer] ⚠ ESP32 unreachable at %s:%s — automatically falling back to SIMULATED mode.",
                 settings.ESP32_HOST, settings.ESP32_PORT
             )
-            return SimulatedSprayerDriver()
+            return SimulationHardwareController()
 
     # Default or SIMULATED
-    logger.info("[Sprayer] SPRAYER_MODE=SIMULATED — using SimulatedSprayerDriver")
-    return SimulatedSprayerDriver()
+    logger.info("[Sprayer] SPRAYER_MODE=SIMULATED — using SimulationHardwareController")
+    return SimulationHardwareController()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -322,7 +337,7 @@ class SprayerController:
     """
 
     def __init__(self):
-        self.driver: BaseSprayerDriver = get_driver_for_mode()
+        self.driver: HardwareController = get_driver_for_mode()
         self.current_state = SprayerStateEnum.READY
         self.current_plant: Optional[str] = None
         self.current_volume: float = 0.0
@@ -344,7 +359,7 @@ class SprayerController:
         if mode == "ESP32":
             reachable = _probe_esp32(settings.ESP32_HOST, settings.ESP32_PORT, settings.ESP32_TIMEOUT)
             if reachable:
-                self.driver = ESP32HttpDriver(settings.ESP32_HOST, settings.ESP32_PORT, settings.ESP32_TIMEOUT)
+                self.driver = ESP32HardwareController(settings.ESP32_HOST, settings.ESP32_PORT, settings.ESP32_TIMEOUT)
                 return {"mode": "ESP32", "connected": True, "message": "Switched to ESP32 hardware driver."}
             else:
                 return {
@@ -353,7 +368,7 @@ class SprayerController:
                     "message": f"ESP32 unreachable at {settings.ESP32_HOST}:{settings.ESP32_PORT}. Staying in SIMULATED mode."
                 }
         else:
-            self.driver = SimulatedSprayerDriver()
+            self.driver = SimulationHardwareController()
             return {"mode": "SIMULATED", "connected": False, "message": "Switched to SIMULATED driver."}
 
     def get_status(self, db: Session) -> Dict[str, Any]:
@@ -371,6 +386,14 @@ class SprayerController:
             db.refresh(state)
 
         active_mode = self.get_active_mode()
+        telemetry = self.driver.get_telemetry()
+        
+        # Sync database state with telemetry if possible
+        if "battery_level" in telemetry:
+            state.battery_level = telemetry["battery_level"]
+        if "fluid_level_pct" in telemetry:
+            state.fluid_level_pct = telemetry["fluid_level_pct"]
+
         disclaimer = (
             "SIMULATION MODE: Operating in calibrated local demo mode for prototype evaluation."
             if active_mode == "SIMULATED"
@@ -388,6 +411,17 @@ class SprayerController:
             "progress_pct": self.progress_pct,
             "total_plants": self.total_plants,
             "completed_plants": self.completed_plants,
+            
+            # Hardware Telemetry
+            "nodeId": telemetry.get("nodeId", "UNKNOWN"),
+            "pump": telemetry.get("pump", "OFF"),
+            "valve": telemetry.get("valve", "CLOSED"),
+            "active_zone": telemetry.get("active_zone", None),
+            "flow_rate": telemetry.get("flow_rate", 0.0),
+            "pressure": telemetry.get("pressure", "UNKNOWN"),
+            "emergency_stopped": telemetry.get("emergency_stopped", False),
+            "fault": telemetry.get("fault", None),
+            
             "disclaimer": disclaimer
         }
 
@@ -401,12 +435,8 @@ class SprayerController:
             state.last_updated = datetime.utcnow()
             db.commit()
 
-        # Also send START command to physical board if in ESP32 mode
-        if active_mode == "ESP32":
-            try:
-                self.driver._post_command("START")  # type: ignore[attr-defined]
-            except Exception as exc:
-                logger.warning("[ESP32] START command failed: %s", exc)
+        # Try to connect to hardware controller
+        self.driver.connect()
 
         return {
             "status": "READY",
@@ -434,6 +464,7 @@ class SprayerController:
         volume_ml: float,
         mode: str = "SIMULATED"
     ) -> Dict[str, Any]:
+        import time
         command_id = f"CMD-SP-{uuid.uuid4().hex[:8].upper()}"
         ts = datetime.utcnow()
 
@@ -475,11 +506,19 @@ class SprayerController:
             db.commit()
             raise ValueError(f"Safety Gate Failed: {'; '.join(safety_result.messages)}")
 
-        # Execute driver spray
-        self.driver.spray(f"P-{plant_id}", volume_ml)
-        self.current_state = SprayerStateEnum.READY
-
         active_mode = self.get_active_mode()
+
+        # Execute driver spray via new hardware controller paradigm
+        zone_id = f"Zone-{plant_id}"
+        self.current_state = SprayerStateEnum.SPRAYING
+        self.driver.open_valve(zone_id)
+        time.sleep(0.2)
+        self.driver.start_pump()
+        time.sleep(1.0)
+        self.driver.stop_pump()
+        time.sleep(0.2)
+        self.driver.close_valve(zone_id)
+        self.current_state = SprayerStateEnum.READY
 
         # Audit Log
         audit_log = AuditLog(
@@ -508,8 +547,12 @@ class SprayerController:
             state = SprayerState(status="READY", mode=active_mode, battery_level=95, fluid_level_pct=90, last_updated=ts)
             db.add(state)
         
-        state.fluid_level_pct = self.driver.fluid_level_pct
-        state.battery_level = self.driver.battery_level
+        telemetry = self.driver.get_telemetry()
+        if "fluid_level_pct" in telemetry:
+            state.fluid_level_pct = telemetry["fluid_level_pct"]
+        if "battery_level" in telemetry:
+            state.battery_level = telemetry["battery_level"]
+            
         state.mode = active_mode
         state.last_updated = ts
 
@@ -560,8 +603,8 @@ class SprayerController:
             self.current_plant = plant.plant_code
             self.current_state = SprayerStateEnum.MOVING
 
-            # 1. Movement Step
-            self.driver.move_to(plant.plant_code, plant.latitude, plant.longitude)
+            # 1. Movement Step (Simulated delay for navigating to zone)
+            time.sleep(0.1)
             execution_logs.append({
                 "plant_code": plant.plant_code,
                 "action": "MOVING",
@@ -625,10 +668,19 @@ class SprayerController:
                     "details": f"{plant.plant_code} → READY ({skip_reason} - Chemical spray locked / 0 mL skipped)"
                 })
             else:
-                # 4. Spraying Execution
+                # 4. Spraying Execution via HardwareController
                 self.current_state = SprayerStateEnum.SPRAYING
                 self.current_volume = vol
-                self.driver.spray(plant.plant_code, vol)
+                zone_id = f"Zone-{plant.id}"
+                
+                # Hardware interaction sequence
+                self.driver.open_valve(zone_id)
+                time.sleep(0.2)
+                self.driver.start_pump()
+                time.sleep(0.5) # Simulate flow delay
+                self.driver.stop_pump()
+                time.sleep(0.2)
+                self.driver.close_valve(zone_id)
 
                 # Record SprayEvent in database
                 cmd_id = f"CMD-AUTO-{uuid.uuid4().hex[:6].upper()}"
@@ -673,8 +725,11 @@ class SprayerController:
         if state:
             state.status = "COMPLETED"
             state.mode = active_mode
-            state.fluid_level_pct = self.driver.fluid_level_pct
-            state.battery_level = self.driver.battery_level
+            telemetry = self.driver.get_telemetry()
+            if "fluid_level_pct" in telemetry:
+                state.fluid_level_pct = telemetry["fluid_level_pct"]
+            if "battery_level" in telemetry:
+                state.battery_level = telemetry["battery_level"]
             state.last_updated = datetime.utcnow()
 
         db.commit()
