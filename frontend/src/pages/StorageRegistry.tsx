@@ -56,6 +56,8 @@ export const StorageRegistry: React.FC = () => {
           registered_application_method: "Foliar Spray",
           label_verified: true,
           chemigation_permitted: true,
+          batch_number: "BATCH-" + Math.floor(Math.random() * 10000),
+          storage_location: "Demo Storage",
           enabled: true
         })
       });

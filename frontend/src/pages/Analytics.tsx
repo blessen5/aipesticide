@@ -122,7 +122,7 @@ export const Analytics: React.FC = () => {
             </div>
           </div>
           <div className="text-3xl font-black text-emerald-400">
-            {summary.estimated_reduction_percentage}%
+            {Number(summary.estimated_reduction_percentage).toFixed(2)}%
           </div>
           <p className="text-xs text-slate-400">
             Vs uniform broadcast spray across {summary.total_plants} plants
