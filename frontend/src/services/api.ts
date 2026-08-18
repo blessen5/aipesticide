@@ -22,7 +22,7 @@ const fetchWithAuth = async (input: RequestInfo | URL, init?: RequestInit): Prom
   return fetch(input, newInit);
 };
 
-const API_BASE = import.meta.env.PROD 
+const API_BASE = (import.meta as any).env.PROD 
   ? 'https://aipesticide-api.onrender.com' 
   : '/api';
 
