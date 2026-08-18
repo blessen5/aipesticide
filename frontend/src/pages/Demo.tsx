@@ -9,7 +9,7 @@ import {
 import {
   MapContainer, TileLayer, CircleMarker, Popup
 } from 'react-leaflet';
-// import 'leaflet/dist/leaflet.css';
+import 'leaflet/dist/leaflet.css';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -26,14 +26,14 @@ import {
 // Demo screen config
 // ─────────────────────────────────────────────────────────────
 const SCREENS = [
-  { id: 1, label: 'Field Overview',          icon: Leaf },
-  { id: 2, label: 'Scan Infected Plant',     icon: Scan },
-  { id: 3, label: 'AI Result',               icon: Activity },
-  { id: 4, label: 'Generate Prescription',   icon: ShieldCheck },
-  { id: 5, label: 'Prescription Map',        icon: MapPin },
-  { id: 6, label: 'Start Sprayer',           icon: Radio },
-  { id: 7, label: 'Spray Completed',         icon: CheckCircle2 },
-  { id: 8, label: 'Analytics',               icon: BarChart3 },
+  { id: 1, label: 'Field Overview', icon: Leaf },
+  { id: 2, label: 'Scan Infected Plant', icon: Scan },
+  { id: 3, label: 'AI Result', icon: Activity },
+  { id: 4, label: 'Generate Prescription', icon: ShieldCheck },
+  { id: 5, label: 'Prescription Map', icon: MapPin },
+  { id: 6, label: 'Start Sprayer', icon: Radio },
+  { id: 7, label: 'Spray Completed', icon: CheckCircle2 },
+  { id: 8, label: 'Analytics', icon: BarChart3 },
 ];
 
 const SEV_COLOR: Record<string, string> = {
@@ -98,7 +98,7 @@ export const Demo: React.FC = () => {
         const f = fieldsRes.value[0];
         setField(f);
         // Load prescription map for this field
-        api.getFieldPrescriptionMap(f.id).then(setPrescriptionMap).catch(() => {});
+        api.getFieldPrescriptionMap(f.id).then(setPrescriptionMap).catch(() => { });
       }
       if (plantsRes.status === 'fulfilled') {
         setPlants(plantsRes.value);
@@ -108,7 +108,7 @@ export const Demo: React.FC = () => {
       }
       if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value);
       if (historyRes.status === 'fulfilled') setSprayHistory(historyRes.value);
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   const handleReset = async () => {
@@ -210,44 +210,25 @@ export const Demo: React.FC = () => {
     setExecLogs(['🤖 Initialising Automated Sprayer Controller...']);
     try {
       await new Promise(r => setTimeout(r, 600));
-      
-      const statusRes = await api.getSprayerStatus();
-      setExecLogs(l => [...l, `📡 Connecting to Hardware (Mode: ${statusRes.mode})...`]);
+      setExecLogs(l => [...l, '📡 Connecting to ESP32 Sprayer (SIMULATED mode)...']);
       await new Promise(r => setTimeout(r, 500));
-      setExecLogs(l => [...l, `🔋 Battery: ${statusRes.battery_level}%  |  Fluid: ${statusRes.fluid_level_pct}%`]);
+      setExecLogs(l => [...l, '🔋 Battery: 94%  |  Fluid: 88%  |  Mode: SIMULATED']);
       await new Promise(r => setTimeout(r, 400));
       setExecLogs(l => [...l, '🗺️  Loading prescription map for field...']);
       await new Promise(r => setTimeout(r, 500));
 
-      const result = await api.executeFieldPrescription(field.id, statusRes.mode);
+      const result = await api.executeFieldPrescription(field.id, 'SIMULATED');
       setExecutionResult(result);
 
-      // Add a simulation of the zone-based hardware flow
       for (const log of result.execution_logs) {
         await new Promise(r => setTimeout(r, 300));
-        
-        if (log.action === 'SKIPPED') {
-          setExecLogs(l => [...l, `✅ [${log.plant_code}] ${log.action} — ${log.details}`]);
-        } else if (log.action === 'MOVING') {
-          setExecLogs(l => [...l, `🚜 Moving to plant [${log.plant_code}] (Zone: ${log.zone_id})...`]);
-        } else if (log.action === 'SPRAYING') {
-          setExecLogs(l => [...l, `💧 Opening Zone ${log.zone_id} Valve...`]);
-          await new Promise(r => setTimeout(r, 200));
-          setExecLogs(l => [...l, `⚙️  Starting Pump... Flow rate: 1.2 L/m`]);
-          await new Promise(r => setTimeout(r, 400));
-          setExecLogs(l => [...l, `💧 [${log.plant_code}] ${log.action} — ${log.details} (${log.volume_ml} mL)`]);
-        } else if (log.action === 'COMPLETED') {
-          setExecLogs(l => [...l, `⚙️  Stopping Pump... Closing Valve...`]);
-          await new Promise(r => setTimeout(r, 200));
-          setExecLogs(l => [...l, `✅ [${log.plant_code}] Treatment completed.`]);
-        } else {
-          setExecLogs(l => [...l, `ℹ️ [${log.plant_code}] ${log.action} — ${log.details}`]);
-        }
+        const icon = log.action === 'SKIPPED' ? '✅' : '💧';
+        setExecLogs(l => [...l, `${icon} [${log.plant_code}] ${log.action} — ${log.details}`]);
       }
       await new Promise(r => setTimeout(r, 500));
       setExecLogs(l => [...l, ``, `🏁 MISSION COMPLETE — ${result.plants_treated} plants treated, ${result.plants_skipped_healthy} skipped (healthy)`, `💧 Total volume sprayed: ${result.total_volume_sprayed.toFixed(1)} mL`]);
       // Reload spray history
-      api.getSprayHistory().then(setSprayHistory).catch(() => {});
+      api.getSprayHistory().then(setSprayHistory).catch(() => { });
     } catch (e) {
       setExecLogs(l => [...l, '❌ Error: ' + String(e)]);
     } finally {
@@ -326,13 +307,12 @@ export const Demo: React.FC = () => {
                 <button
                   key={s.id}
                   onClick={() => go(s.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border ${
-                    isActive
-                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 scale-105 shadow-md shadow-amber-500/10'
-                      : isDone
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                        : 'border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-600'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border ${isActive
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 scale-105 shadow-md shadow-amber-500/10'
+                    : isDone
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                    }`}
                 >
                   {isDone
                     ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -750,13 +730,12 @@ export const Demo: React.FC = () => {
                 <button
                   onClick={handleExecuteSprayer}
                   disabled={executing || executionResult !== null}
-                  className={`w-full flex items-center justify-center gap-2 px-5 py-4 rounded-xl font-black text-lg shadow-lg transition ${
-                    executionResult
-                      ? 'bg-emerald-900 text-emerald-400 border border-emerald-500/30 cursor-default'
-                      : executing
-                        ? 'bg-emerald-950 text-emerald-500 border border-emerald-800 cursor-wait'
-                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25'
-                  }`}
+                  className={`w-full flex items-center justify-center gap-2 px-5 py-4 rounded-xl font-black text-lg shadow-lg transition ${executionResult
+                    ? 'bg-emerald-900 text-emerald-400 border border-emerald-500/30 cursor-default'
+                    : executing
+                      ? 'bg-emerald-950 text-emerald-500 border border-emerald-800 cursor-wait'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25'
+                    }`}
                 >
                   {executionResult ? (
                     <><CheckCircle2 className="w-5 h-5" /> Mission Complete</>
