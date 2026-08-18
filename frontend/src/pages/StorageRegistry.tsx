@@ -34,6 +34,44 @@ export const StorageRegistry: React.FC = () => {
     fetchProducts();
   }, []);
 
+  const handleAddProduct = async () => {
+    const name = window.prompt("Enter Product Name (e.g. Folicur 250 EW):");
+    if (!name) return;
+    const ingredient = window.prompt("Enter Active Ingredient (e.g. Tebuconazole 25.9% EC):");
+    if (!ingredient) return;
+
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          product_id: name.toLowerCase().replace(/\s+/g, '-'),
+          product_name: name,
+          active_ingredient: ingredient,
+          crop: "Wheat",
+          target: "Stripe Rust",
+          registered_application_method: "Foliar Spray",
+          label_verified: true,
+          chemigation_permitted: true,
+          enabled: true
+        })
+      });
+      if (res.ok) {
+        fetchProducts();
+      } else {
+        const err = await res.json();
+        setError(err.detail || 'Failed to add product');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to add product');
+    }
+  };
+
+
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-16">
       {/* Header */}
@@ -57,6 +95,7 @@ export const StorageRegistry: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
           </button>
           <button
+            onClick={handleAddProduct}
             className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition"
           >
             <Plus className="w-4 h-4" />
