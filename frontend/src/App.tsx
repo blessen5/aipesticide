@@ -9,6 +9,8 @@ import { ScanPlant } from './pages/ScanPlant';
 import { PrescriptionMap } from './pages/PrescriptionMap';
 import { SprayerControl } from './pages/SprayerControl';
 import { SprayHistory } from './pages/SprayHistory';
+import { AuditHistory } from './pages/AuditHistory';
+import { StorageRegistry } from './pages/StorageRegistry';
 import { Analytics } from './pages/Analytics';
 import { Demo } from './pages/Demo';
 
@@ -26,6 +28,8 @@ export const App: React.FC = () => {
             <Route path="/map" element={<PrescriptionMap />} />
             <Route path="/sprayer" element={<SprayerControl />} />
             <Route path="/history" element={<SprayHistory />} />
+            <Route path="/audit" element={<AuditHistory />} />
+            <Route path="/storage" element={<StorageRegistry />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/demo" element={<Demo />} />
             <Route path="*" element={<Navigate to="/" replace />} />

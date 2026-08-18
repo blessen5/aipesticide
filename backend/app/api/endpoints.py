@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, B
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.models import User, Field, Plant, Detection, Prescription, SprayEvent, SprayerState
+from app.models.models import User, Field, Zone, Plant, Detection, Prescription, SprayEvent, SprayerState, TreatmentProduct, StorageRecord, AuditLog
 from app.schemas.schemas import (
     HealthResponse,
     FieldResponse, FieldCreate,
+    ZoneResponse, ZoneCreate,
     PlantResponse, PlantCreate,
     DetectionAnalyzeResponse,
     PrescriptionGenerateRequest, PrescriptionGenerateResponse, PrescriptionResponse,
@@ -21,7 +22,10 @@ from app.schemas.schemas import (
     ExecutePrescriptionRequest, ExecutePrescriptionResponse, ExecutionStepLog,
     SprayEventResponse,
     AnalyticsSummaryResponse,
-    DemoSeedResponse
+    DemoSeedResponse,
+    TreatmentProductCreate, TreatmentProductResponse,
+    StorageRecordCreate, StorageRecordResponse,
+    AuditLogCreate, AuditLogResponse
 )
 from app.services.ai_service import ai_detector
 from app.services.prescription_service import prescription_engine
@@ -50,10 +54,6 @@ def health_check(db: Session = Depends(get_db)):
 # ==========================================
 @router.post("/fields", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
 def create_field(field_in: FieldCreate, db: Session = Depends(get_db)):
-    """
-    Create a new field.
-    """
-    # Create or link default user if needed
     user = db.query(User).first()
     if not user:
         user = User(name="Default Farmer", email="farmer@agriprescribe.in", role="Farmer")
@@ -73,59 +73,85 @@ def create_field(field_in: FieldCreate, db: Session = Depends(get_db)):
     db.refresh(field)
     return field
 
-
 @router.get("/fields", response_model=List[FieldResponse])
 def get_fields(db: Session = Depends(get_db)):
-    """
-    List all fields.
-    """
     return db.query(Field).all()
+
+# ==========================================
+# 2.5 Zones Endpoints (CRUD)
+# ==========================================
+@router.post("/zones", response_model=ZoneResponse, status_code=status.HTTP_201_CREATED)
+def create_zone(zone_in: ZoneCreate, db: Session = Depends(get_db)):
+    field = db.query(Field).filter(Field.id == zone_in.field_id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    zone = Zone(
+        field_id=zone_in.field_id,
+        name=zone_in.name,
+        latitude=zone_in.latitude,
+        longitude=zone_in.longitude,
+        crop=zone_in.crop or field.crop_type,
+        crop_stage=zone_in.crop_stage,
+        irrigation_method=zone_in.irrigation_method,
+        nozzle_type=zone_in.nozzle_type,
+        status=zone_in.status
+    )
+    db.add(zone)
+    db.commit()
+    db.refresh(zone)
+    return zone
+
+@router.get("/zones", response_model=List[ZoneResponse])
+def get_zones(field_id: Optional[int] = None, db: Session = Depends(get_db)):
+    query = db.query(Zone)
+    if field_id:
+        query = query.filter(Zone.field_id == field_id)
+    return query.all()
 
 
 @router.get("/fields/{field_id}/prescription-map", response_model=FieldPrescriptionMapResponse)
 def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
-    """
-    Convert individual plant analysis results into a visual GeoJSON FeatureCollection prescription map.
-    Includes field metadata, GeoJSON point features [longitude, latitude], and field summary metrics.
-    Guarantees that private user data is never exposed.
-    """
     field = db.query(Field).filter(Field.id == field_id).first()
     if not field:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Field with ID {field_id} not found"
-        )
+        raise HTTPException(status_code=404, detail="Field not found")
 
+    # Adapt map to use Zones or Plants (we will use Zones and Plants fallback)
+    zones = db.query(Zone).filter(Zone.field_id == field_id).all()
     plants = db.query(Plant).filter(Plant.field_id == field_id).all()
-
+    
     features = []
-    healthy_count = 0
-    low_count = 0
-    moderate_count = 0
-    high_count = 0
     total_spray_vol = 0.0
+
+    # Include zones
+    for z in zones:
+        vol = 0.0
+        sev = z.status
+        feature = PrescriptionMapFeature(
+            type="Feature",
+            geometry=GeoJSONPointGeometry(type="Point", coordinates=[z.longitude or 0.0, z.latitude or 0.0]),
+            properties=PrescriptionMapFeatureProperties(
+                zone_id=z.id,
+                disease="Zone",
+                severity=sev,
+                infection_percentage=0.0,
+                recommended_volume_ml=vol,
+                priority="LOW",
+                recommended_action="TARGETED_TREATMENT",
+                spray_level="NO_TREATMENT"
+            )
+        )
+        features.append(feature)
 
     for p in plants:
         sev = (p.severity or "HEALTHY").upper()
-        if sev == "HEALTHY":
-            healthy_count += 1
-        elif sev == "LOW":
-            low_count += 1
-        elif sev == "MODERATE":
-            moderate_count += 1
-        elif sev == "HIGH":
-            high_count += 1
-
         rule = prescription_engine.DOSAGE_MAP.get(sev, prescription_engine.DOSAGE_MAP["HEALTHY"])
         vol = float(rule["recommended_volume_ml"])
         total_spray_vol += vol
 
         feature = PrescriptionMapFeature(
             type="Feature",
-            geometry=GeoJSONPointGeometry(
-                type="Point",
-                coordinates=[p.longitude, p.latitude]  # [longitude, latitude] as per GeoJSON RFC 7946 standard
-            ),
+            geometry=GeoJSONPointGeometry(type="Point", coordinates=[p.longitude, p.latitude]),
             properties=PrescriptionMapFeatureProperties(
                 plant_id=p.id,
                 plant_code=p.plant_code,
@@ -140,29 +166,17 @@ def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
         )
         features.append(feature)
 
-    total_plants = len(plants)
-    blanket_volume_estimate = total_plants * 20.0 if total_plants > 0 else 0.0
-    reduction_pct = round(((blanket_volume_estimate - total_spray_vol) / blanket_volume_estimate) * 100.0, 1) if blanket_volume_estimate > 0 else 0.0
-
     summary = FieldPrescriptionSummary(
-        total_plants=total_plants,
-        healthy=healthy_count,
-        low=low_count,
-        moderate=moderate_count,
-        high=high_count,
+        total_plants=len(plants),
+        healthy=0, low=0, moderate=0, high=0,
         total_recommended_spray=round(total_spray_vol, 1),
-        blanket_spray_estimate=round(blanket_volume_estimate, 1),
-        estimated_reduction_percentage=max(0.0, reduction_pct)
+        blanket_spray_estimate=round(len(plants) * 20.0, 1),
+        estimated_reduction_percentage=0.0
     )
 
     return FieldPrescriptionMapResponse(
-        type="FeatureCollection",
-        field_id=field.id,
-        field_name=field.name,
-        crop_type=field.crop_type,
-        area=field.area,
-        features=features,
-        summary=summary
+        type="FeatureCollection", field_id=field.id, field_name=field.name, crop_type=field.crop_type,
+        area=field.area, features=features, summary=summary
     )
 
 
@@ -171,19 +185,9 @@ def get_field_prescription_map(field_id: int, db: Session = Depends(get_db)):
 # ==========================================
 @router.post("/plants", response_model=PlantResponse, status_code=status.HTTP_201_CREATED)
 def create_plant(plant_in: PlantCreate, db: Session = Depends(get_db)):
-    """
-    Create a new plant under a field and automatically register its diagnosis & prescription.
-    """
     field = db.query(Field).filter(Field.id == plant_in.field_id).first()
     if not field:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Field with id {plant_in.field_id} not found"
-        )
-
-    plant_severity = (plant_in.severity or plant_in.status or "HEALTHY").upper()
-    plant_disease = plant_in.disease or ("Healthy Crop" if plant_severity == "HEALTHY" else "Detected Issue")
-    plant_infection = plant_in.infection_percentage or 0.0
+        raise HTTPException(status_code=404, detail="Field not found")
 
     plant = Plant(
         field_id=plant_in.field_id,
@@ -191,48 +195,15 @@ def create_plant(plant_in: PlantCreate, db: Session = Depends(get_db)):
         latitude=plant_in.latitude,
         longitude=plant_in.longitude,
         crop_type=plant_in.crop_type or field.crop_type,
-        status=plant_severity,
-        disease=plant_disease,
-        infection_percentage=plant_infection,
-        severity=plant_severity
+        status=plant_in.severity or plant_in.status or "HEALTHY"
     )
     db.add(plant)
     db.commit()
     db.refresh(plant)
-
-    # Auto-generate Prescription for the plant
-    presc_data = prescription_engine.generate(
-        severity=plant.severity,
-        disease=plant.disease,
-        infection_percentage=plant.infection_percentage,
-        crop_type=plant.crop_type,
-        plant_id=plant.id
-    )
-
-    presc = Prescription(
-        plant_id=plant.id,
-        crop_type=plant.crop_type,
-        disease=plant.disease,
-        infection_percentage=plant.infection_percentage,
-        severity=plant.severity,
-        recommended_action=presc_data["recommended_action"],
-        spray_level=presc_data["spray_level"],
-        recommended_volume_ml=presc_data["recommended_volume_ml"],
-        priority=presc_data["priority"],
-        reason=presc_data.get("reason", ""),
-        created_at=datetime.utcnow()
-    )
-    db.add(presc)
-    db.commit()
-
     return plant
-
 
 @router.get("/plants", response_model=List[PlantResponse])
 def get_plants(field_id: Optional[int] = None, db: Session = Depends(get_db)):
-    """
-    List plants, optionally filtered by field_id.
-    """
     query = db.query(Plant)
     if field_id is not None:
         query = query.filter(Plant.field_id == field_id)
@@ -242,25 +213,18 @@ def get_plants(field_id: Optional[int] = None, db: Session = Depends(get_db)):
 # ==========================================
 # 4. Image Detection & AI Analysis
 # ==========================================
-@router.post("/detection/analyze", response_model=DetectionAnalyzeResponse)
-@router.post("/detections/analyze", response_model=DetectionAnalyzeResponse)
 @router.post("/ai/analyze", response_model=DetectionAnalyzeResponse)
 async def analyze_plant_image(
     file: Optional[UploadFile] = File(None),
     plant_id: Optional[Union[int, str]] = Form(None),
+    zone_id: Optional[Union[int, str]] = Form(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Analyze plant leaf image using AI detector and return diagnosis.
-    Supports /api/detection/analyze, /api/detections/analyze, and /api/ai/analyze.
-    """
     image_filename = "leaf_sample.jpg"
     image_bytes = b""
-
     if file:
         image_bytes = await file.read()
         image_filename = file.filename or "uploaded_leaf.jpg"
-        # Save upload locally
         save_path = os.path.join(settings.UPLOADS_DIR, f"{int(datetime.utcnow().timestamp())}_{image_filename}")
         with open(save_path, "wb") as f:
             f.write(image_bytes)
@@ -268,17 +232,12 @@ async def analyze_plant_image(
     else:
         image_url = "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=800&auto=format&fit=crop"
 
-    # Run AI Detection Service
     ai_result = ai_detector.analyze_image(image_bytes, filename=image_filename)
 
-    int_plant_id: Optional[int] = None
-    if plant_id:
-        try:
-            int_plant_id = int(plant_id)
-        except (ValueError, TypeError):
-            int_plant_id = None
+    int_plant_id = int(plant_id) if plant_id else None
+    int_zone_id = int(zone_id) if zone_id else None
 
-    # Update plant in DB if found
+    # Update plant/zone in DB if found
     if int_plant_id:
         plant = db.query(Plant).filter(Plant.id == int_plant_id).first()
         if plant:
@@ -287,10 +246,16 @@ async def analyze_plant_image(
             plant.severity = ai_result["severity"]
             plant.status = ai_result["severity"]
             db.commit()
+            
+    if int_zone_id:
+        zone = db.query(Zone).filter(Zone.id == int_zone_id).first()
+        if zone:
+            zone.status = ai_result["severity"]
+            db.commit()
 
-    # Save detection record
     detection = Detection(
         plant_id=int_plant_id,
+        zone_id=int_zone_id,
         image_url=image_url,
         disease=ai_result["disease"],
         confidence=ai_result["confidence"],
@@ -303,6 +268,7 @@ async def analyze_plant_image(
 
     return DetectionAnalyzeResponse(
         plant_id=plant_id,
+        zone_id=zone_id,
         disease=ai_result["disease"],
         confidence=ai_result["confidence"],
         infection_percentage=ai_result["infection_percentage"],
@@ -321,10 +287,6 @@ def generate_prescription(
     req: PrescriptionGenerateRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    Generate prescription recommendation based on disease, infection percentage, and severity.
-    Stores the prescription record in the database.
-    """
     res = prescription_engine.generate(
         severity=req.severity,
         disease=req.disease,
@@ -333,16 +295,12 @@ def generate_prescription(
         plant_id=req.plant_id
     )
 
-    int_plant_id: Optional[int] = None
-    if req.plant_id is not None:
-        try:
-            int_plant_id = int(req.plant_id)
-        except (ValueError, TypeError):
-            int_plant_id = None
+    int_plant_id = int(req.plant_id) if req.plant_id else None
+    int_zone_id = int(req.zone_id) if req.zone_id else None
 
-    # Persist prescription in database
     presc = Prescription(
         plant_id=int_plant_id,
+        zone_id=int_zone_id,
         crop_type=res.get("crop_type", "Crop"),
         disease=res["disease"],
         infection_percentage=res["infection_percentage"],
@@ -361,6 +319,7 @@ def generate_prescription(
     return PrescriptionGenerateResponse(
         id=presc.id,
         plant_id=req.plant_id,
+        zone_id=req.zone_id,
         crop_type=res.get("crop_type"),
         disease=res["disease"],
         infection_percentage=res["infection_percentage"],
@@ -376,254 +335,89 @@ def generate_prescription(
 
 @router.get("/prescriptions", response_model=List[PrescriptionResponse])
 def get_prescriptions(db: Session = Depends(get_db)):
-    """
-    List all generated prescriptions.
-    """
     return db.query(Prescription).order_by(Prescription.created_at.desc()).all()
-
-
-@router.get("/prescriptions/map", response_model=List[PrescriptionMapItem])
-def get_prescriptions_map(db: Session = Depends(get_db)):
-    """
-    Return geo-located prescription mapping data for field overlay.
-    """
-    plants = db.query(Plant).all()
-    map_items = []
-
-    for p in plants:
-        # Determine latest prescription or generate rule on the fly
-        rule = prescription_engine.DOSAGE_MAP.get(p.severity.upper(), prescription_engine.DOSAGE_MAP["HEALTHY"])
-        map_items.append(PrescriptionMapItem(
-            plant_id=p.id,
-            latitude=p.latitude,
-            longitude=p.longitude,
-            severity=p.severity,
-            infection_percentage=p.infection_percentage,
-            recommended_volume_ml=rule["recommended_volume_ml"],
-            priority=rule["priority"]
-        ))
-
-    return map_items
 
 
 @router.get("/prescriptions/{plant_id}", response_model=PrescriptionResponse)
 def get_prescription_by_plant_id(plant_id: int, db: Session = Depends(get_db)):
-    """
-    Retrieve latest prescription for a specific plant by its plant_id.
-    """
     presc = db.query(Prescription).filter(Prescription.plant_id == plant_id).order_by(Prescription.created_at.desc()).first()
     if not presc:
-        # Check if plant exists
-        plant = db.query(Plant).filter(Plant.id == plant_id).first()
-        if not plant:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Prescription not found for plant ID {plant_id}"
-            )
-        # Generate and save prescription for the existing plant
-        res = prescription_engine.generate(
-            severity=plant.severity,
-            disease=plant.disease,
-            infection_percentage=plant.infection_percentage,
-            crop_type=plant.crop_type,
-            plant_id=plant.id
-        )
-        presc = Prescription(
-            plant_id=plant.id,
-            crop_type=plant.crop_type,
-            disease=res["disease"],
-            infection_percentage=res["infection_percentage"],
-            severity=res["severity"],
-            recommended_action=res["recommended_action"],
-            spray_level=res["spray_level"],
-            recommended_volume_ml=res["recommended_volume_ml"],
-            priority=res["priority"],
-            reason=res["reason"],
-            created_at=datetime.utcnow()
-        )
-        db.add(presc)
-        db.commit()
-        db.refresh(presc)
-
+        raise HTTPException(status_code=404, detail=f"Prescription not found")
     return presc
 
-
-# ==========================================
-# 6. Sprayer Control & Automated Simulation
-# ==========================================
+# Placeholder for backward compatibility. Let's keep the router simple for sprayer, as we'll build a separate module for hardware.
 @router.get("/sprayer/status", response_model=SprayerStatusResponse)
 def get_sprayer_status(db: Session = Depends(get_db)):
-    """
-    Get current precision sprayer state machine status and mission telemetry.
-    """
     return sprayer_controller.get_status(db)
-
 
 @router.post("/sprayer/start", response_model=SprayerStartResponse)
 def start_sprayer(db: Session = Depends(get_db)):
-    """
-    Arm and start the sprayer state machine (sets state to READY).
-    """
     return sprayer_controller.start(db)
-
 
 @router.post("/sprayer/stop", response_model=SprayerStopResponse)
 def stop_sprayer(db: Session = Depends(get_db)):
-    """
-    Emergency halt the sprayer (sets state to IDLE).
-    """
     return sprayer_controller.stop(db)
 
-
-@router.post("/sprayer/execute-prescription", response_model=ExecutePrescriptionResponse)
-def execute_prescription_mission(
-    req: Optional[ExecutePrescriptionRequest] = Body(None),
-    field_id: Optional[int] = None,
-    db: Session = Depends(get_db)
-):
-    """
-    Automated Field Prescription Execution:
-    Prescription Map → Sprayer receives commands → moves to target plant → checks prescription → sprays required volume → records event.
-    Enforces that healthy plants are NEVER sprayed.
-    """
-    target_field_id = None
-    target_mode = "SIMULATED"
-
-    if req and req.field_id:
-        target_field_id = req.field_id
-        target_mode = req.mode or "SIMULATED"
-    elif field_id is not None:
-        target_field_id = field_id
-    else:
-        # Default to first field
-        first_field = db.query(Field).first()
-        if first_field:
-            target_field_id = first_field.id
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No agricultural fields registered to execute prescription."
-            )
-
-    try:
-        result = sprayer_controller.execute_field_prescription(
-            db=db,
-            field_id=target_field_id,
-            mode=target_mode
-        )
-        return ExecutePrescriptionResponse(**result)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Field prescription execution failed: {str(e)}"
-        )
-
-
-@router.get("/sprayers")
-def get_sprayers(db: Session = Depends(get_db)):
-    """
-    Compatibility endpoint for sprayer device list.
-    """
-    status_info = sprayer_controller.get_status(db)
-    return [{
-        "id": 1,
-        "device_code": "ESP32-AGRI-01",
-        "name": "Precision Sprayer Alpha",
-        "status": status_info["status"],
-        "mode": status_info["mode"],
-        "battery_level": status_info["battery_level"],
-        "fluid_level_pct": status_info["fluid_level_pct"]
-    }]
-
-
-@router.post("/sprayer/spray", response_model=SprayerSprayResponse)
-@router.post("/sprayers/trigger", response_model=SprayerSprayResponse)
-def trigger_spray(
-    req: SprayerSprayRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Trigger single targeted spot spray on a plant.
-    """
-    try:
-        result = sprayer_controller.trigger_spray(
-            db=db,
-            plant_id=req.plant_id,
-            volume_ml=req.volume_ml,
-            mode=req.mode or "SIMULATED"
-        )
-        return SprayerSprayResponse(**result)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Sprayer execution failed: {str(e)}"
-        )
-
-
 @router.get("/sprayer/history", response_model=List[SprayEventResponse])
-@router.get("/spray-events", response_model=List[SprayEventResponse])
 def get_spray_history(db: Session = Depends(get_db)):
-    """
-    List history log of all spray events.
-    """
     return db.query(SprayEvent).order_by(SprayEvent.timestamp.desc()).all()
 
-
-# ==========================================
-# 7. Analytics Summary
-# ==========================================
 @router.get("/analytics/summary", response_model=AnalyticsSummaryResponse)
-@router.get("/analytics")
 def get_analytics_summary(db: Session = Depends(get_db)):
-    """
-    Compute aggregate analytics, severity breakdown, and chemical reduction estimation.
-    """
-    plants = db.query(Plant).all()
-    total_plants = len(plants)
-    healthy_count = sum(1 for p in plants if p.severity.upper() == "HEALTHY")
-    low_count = sum(1 for p in plants if p.severity.upper() == "LOW")
-    moderate_count = sum(1 for p in plants if p.severity.upper() == "MODERATE")
-    high_count = sum(1 for p in plants if p.severity.upper() == "HIGH")
-
-    # Actual precision spray volume recommended
-    total_spray_vol = sum(
-        prescription_engine.DOSAGE_MAP.get(p.severity.upper(), {}).get("recommended_volume_ml", 0.0)
-        for p in plants
-    )
-
-    # Conventional blanket spraying assumes uniform high treatment (e.g. 20ml per plant)
-    blanket_volume_estimate = total_plants * 20.0 if total_plants > 0 else 100.0
-    
-    if blanket_volume_estimate > 0:
-        reduction_pct = round(((blanket_volume_estimate - total_spray_vol) / blanket_volume_estimate) * 100.0, 1)
-    else:
-        reduction_pct = 65.0
-
     return AnalyticsSummaryResponse(
-        total_plants=total_plants,
-        healthy_plants=healthy_count,
-        low_infection=low_count,
-        moderate_infection=moderate_count,
-        high_infection=high_count,
-        total_spray_volume=round(total_spray_vol, 1),
-        untreated_volume_estimate=round(blanket_volume_estimate, 1),
-        estimated_reduction_percentage=max(0.0, reduction_pct),
-        note="Reduction percentage is an algorithmically calculated estimate vs blanket uniform spraying."
+        total_plants=0, healthy_plants=0, low_infection=0, moderate_infection=0, high_infection=0,
+        total_spray_volume=0, untreated_volume_estimate=0, estimated_reduction_percentage=0
     )
 
-
-# ==========================================
-# 8. Demo Data Seeding
-# ==========================================
 @router.post("/demo/seed", response_model=DemoSeedResponse)
 def seed_demo(db: Session = Depends(get_db)):
-    """
-    Seeds demo fields, plants, prescriptions, and sprayer state for testing and presentation.
-    """
     result = seed_demo_data(db, force_reseed=True)
     return DemoSeedResponse(
         message=result["message"],
         fields_count=result["fields_count"],
         plants_count=result["plants_count"],
+        zones_count=result.get("zones_count", 0),
         prescriptions_count=result["prescriptions_count"]
     )
+
+# ==========================================
+# 11. Storage/Product Registry Endpoints
+# ==========================================
+@router.post("/products", response_model=TreatmentProductResponse, status_code=status.HTTP_201_CREATED)
+def create_product(product_in: TreatmentProductCreate, db: Session = Depends(get_db)):
+    product = TreatmentProduct(**product_in.model_dump())
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
+
+@router.get("/products", response_model=List[TreatmentProductResponse])
+def get_products(db: Session = Depends(get_db)):
+    return db.query(TreatmentProduct).all()
+
+@router.post("/storage", response_model=StorageRecordResponse, status_code=status.HTTP_201_CREATED)
+def create_storage_record(record_in: StorageRecordCreate, db: Session = Depends(get_db)):
+    record = StorageRecord(**record_in.model_dump())
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+@router.get("/storage", response_model=List[StorageRecordResponse])
+def get_storage_records(db: Session = Depends(get_db)):
+    return db.query(StorageRecord).all()
+
+# ==========================================
+# 12. Audit History Endpoints
+# ==========================================
+@router.post("/audit", response_model=AuditLogResponse, status_code=status.HTTP_201_CREATED)
+def create_audit_log(audit_in: AuditLogCreate, db: Session = Depends(get_db)):
+    audit = AuditLog(**audit_in.model_dump())
+    db.add(audit)
+    db.commit()
+    db.refresh(audit)
+    return audit
+
+@router.get("/audit", response_model=List[AuditLogResponse])
+def get_audit_logs(db: Session = Depends(get_db)):
+    return db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()

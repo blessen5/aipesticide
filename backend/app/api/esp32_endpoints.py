@@ -43,12 +43,14 @@ class HardwareHealthResponse(BaseModel):
 class HardwareCommandRequest(BaseModel):
     command: str = Field(..., description="Command to send: START | STOP | MOVE | SPRAY")
     plant_id: str = Field(default="", description="Plant identifier, e.g. 'P003'")
+    zone_id: Optional[str] = Field(default=None, description="Zone identifier")
     volume_ml: float = Field(default=0.0, ge=0.0, description="Volume in mL (required for SPRAY)")
 
 
 class HardwareCommandResponse(BaseModel):
     command: str
-    plant_id: str
+    plant_id: Optional[str] = None
+    zone_id: Optional[str] = None
     volume_ml: float
     active_mode: str
     esp32_response: Optional[dict] = None
@@ -163,7 +165,7 @@ def hardware_command(req: HardwareCommandRequest):
     ```json
     {
       "command": "SPRAY",
-      "plant_id": "P003",
+      "zone_id": "Z001",
       "volume_ml": 10
     }
     ```
@@ -203,14 +205,17 @@ def hardware_command(req: HardwareCommandRequest):
             result_msg = "STOP command sent — all actuators halted."
 
         elif cmd == "MOVE":
-            move_result = sprayer_controller.driver.move_to(req.plant_id, 0.0, 0.0)
+            # Pass zone_id if available, fallback to plant_id
+            target = req.zone_id if req.zone_id else req.plant_id
+            move_result = sprayer_controller.driver.move_to(target, 0.0, 0.0)
             esp32_response = move_result
             result_msg = "MOVE command sent."
 
         elif cmd == "SPRAY":
-            spray_result = sprayer_controller.driver.spray(req.plant_id, req.volume_ml)
+            target = req.zone_id if req.zone_id else req.plant_id
+            spray_result = sprayer_controller.driver.spray(target, req.volume_ml)
             esp32_response = spray_result
-            result_msg = f"SPRAY command sent — {req.volume_ml} mL for plant {req.plant_id}."
+            result_msg = f"SPRAY command sent — {req.volume_ml} mL for target {target}."
 
         else:
             result_msg = "Command dispatched."
@@ -225,6 +230,7 @@ def hardware_command(req: HardwareCommandRequest):
     return HardwareCommandResponse(
         command=cmd,
         plant_id=req.plant_id,
+        zone_id=req.zone_id,
         volume_ml=req.volume_ml,
         active_mode=active_mode,
         esp32_response=esp32_response,
