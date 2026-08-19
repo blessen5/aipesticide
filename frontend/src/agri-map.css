@@ -1,0 +1,26 @@
+.leaflet-tile-pane { filter: none !important; }
+
+.leaflet-container.farm-lens {
+  background: #102016 !important;
+}
+
+.farm-boundary-pulse {
+  animation: farmBoundaryPulse 3.2s ease-in-out infinite;
+}
+
+@keyframes farmBoundaryPulse {
+  0%, 100% { opacity: .72; }
+  50% { opacity: 1; }
+}
+
+.farm-map-label {
+  background: rgba(3, 15, 10, .86);
+  border: 1px solid rgba(110, 231, 183, .3);
+  color: #d1fae5;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font: 700 10px/1 Inter, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
