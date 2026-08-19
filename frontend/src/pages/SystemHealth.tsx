@@ -103,7 +103,7 @@ export const SystemHealth: React.FC = () => {
               <p className="text-slate-400">Inspect REST endpoints, Pydantic schemas, and live test payloads</p>
             </div>
             <a
-              href={`${BASE_URL || 'http://localhost:8000'}/docs`}
+              href={`${BASE_URL || 'http://localhost:8001'}/docs`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 bg-agri-600 hover:bg-agri-500 text-slate-950 font-bold rounded-lg flex items-center space-x-1.5 transition"
