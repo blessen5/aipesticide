@@ -22,9 +22,12 @@ const fetchWithAuth = async (input: RequestInfo | URL, init?: RequestInit): Prom
   return fetch(input, newInit);
 };
 
-const API_BASE = (import.meta as any).env.PROD 
+export const API_BASE = (import.meta as any).env.PROD 
   ? 'https://aipesticide-api.onrender.com/api' 
   : '/api';
+
+// If other files are looking specifically for BASE_URL, you can also export an alias:
+export const BASE_URL = API_BASE;
 
 // Offline caching utility
 const offlineGet = async <T>(url: string, cacheKey: string): Promise<T> => {
