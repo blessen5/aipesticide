@@ -5,84 +5,22 @@
 @layer base {
   :root { color-scheme: dark; }
   html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #06110d;
-    color: #f4f4f5;
-    -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
-  }
-  h1,h2,h3,h4,h5,h6 { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -0.025em; }
-  button,a { -webkit-tap-highlight-color: transparent; }
+  body { margin:0; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#06110d; color:#f4f4f5; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,h4,h5,h6 { font-family:'Outfit',sans-serif; letter-spacing:-.025em; }
+  button,a { -webkit-tap-highlight-color:transparent; }
 }
-
-/* Modern agricultural application shell */
-.app-shell {
-  background:
-    radial-gradient(circle at 8% 0%, rgba(34,197,94,.14), transparent 28%),
-    radial-gradient(circle at 92% 12%, rgba(14,165,233,.10), transparent 25%),
-    linear-gradient(145deg, #06110d 0%, #07130f 45%, #081018 100%);
-}
-.app-bg-glow { position: fixed; width: 28rem; height: 28rem; border-radius: 9999px; filter: blur(100px); opacity: .16; pointer-events: none; z-index: 0; }
-.app-bg-glow-one { top: 6rem; left: -12rem; background: #22c55e; }
-.app-bg-glow-two { top: 28rem; right: -14rem; background: #06b6d4; }
-.app-bg-glow-three { bottom: -14rem; left: 40%; background: #84cc16; }
-.page-enter { animation: pageEnter .45s cubic-bezier(.22,1,.36,1) both; }
-@keyframes pageEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-.bg-dot-grid { background-image: radial-gradient(rgba(167,243,208,.12) 1px, transparent 1px); background-size: 24px 24px; }
-.bg-cad-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,.025) 1px, transparent 1px),linear-gradient(to bottom, rgba(255,255,255,.025) 1px, transparent 1px); }
-.vignette-mask { mask-image: radial-gradient(ellipse 70% 60% at 50% 10%, #000 50%, transparent 100%); -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 10%, #000 50%, transparent 100%); }
-
-.card-surface {
-  position: relative;
-  background: linear-gradient(145deg, rgba(18,35,28,.92), rgba(11,20,17,.94));
-  border: 1px solid rgba(74,222,128,.14);
-  border-radius: 1.1rem;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 12px 40px rgba(0,0,0,.22);
-  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
-}
-.card-surface:hover { transform: translateY(-2px); border-color: rgba(74,222,128,.30); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 18px 48px rgba(0,0,0,.30); }
-
-.spotlight-card {
-  position: relative;
-  background: linear-gradient(145deg, rgba(18,35,28,.94), rgba(10,18,15,.96));
-  border: 1px solid rgba(74,222,128,.14);
-  border-radius: 1.1rem;
-  overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 12px 40px rgba(0,0,0,.22);
-  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
-}
-.spotlight-card::before { content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(500px circle at var(--mouse-x,-500px) var(--mouse-y,-500px), rgba(74,222,128,.10), transparent 50%); z-index:1; }
-.spotlight-card:hover { transform: translateY(-2px); border-color: rgba(74,222,128,.30); box-shadow: 0 18px 48px rgba(0,0,0,.30); }
-
-/* Friendly color vocabulary */
-.text-agri { color: #86efac; }
-.bg-agri-gradient { background: linear-gradient(135deg,#16a34a,#0d9488); }
-.agri-gradient-text { background: linear-gradient(90deg,#86efac,#67e8f9); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.laser-emerald { box-shadow: 0 0 18px rgba(16,185,129,.30); }
-.laser-sky { box-shadow: 0 0 18px rgba(56,189,248,.26); }
-.laser-amber { box-shadow: 0 0 18px rgba(245,158,11,.24); }
-
-/* KPI cards feel like live instruments rather than static boxes */
-.lg\:grid-cols-4 > .spotlight-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
-
-.table-header-cell { padding:.75rem 1rem; font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:#a7f3d0; background:#0d1b15; border-bottom:1px solid #19382a; }
-.table-body-cell { padding:.875rem 1rem; font-size:.875rem; color:#e4e4e7; border-bottom:1px solid #14251d; }
-
-@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-.shimmer-skeleton { background:linear-gradient(90deg,#102018 0%,#19382a 50%,#102018 100%); background-size:200% 100%; animation:shimmer 1.6s infinite ease-in-out; }
-
-::-webkit-scrollbar { width:7px; height:7px; }
-::-webkit-scrollbar-track { background:#06110d; }
-::-webkit-scrollbar-thumb { background:#28523d; border-radius:999px; }
-::-webkit-scrollbar-thumb:hover { background:#3f7a59; }
-
-.leaflet-container { width:100%; height:100%; border-radius:1rem; z-index:10; background:#0b1711 !important; border:1px solid rgba(74,222,128,.18); }
-/* Keep satellite/farm imagery natural. Do not invert or hue-rotate the farm. */
-.leaflet-tile-pane { filter: brightness(.94) contrast(1.04) saturate(1.10); }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; }
-}
+.app-shell { background:radial-gradient(circle at 8% 0%,rgba(34,197,94,.14),transparent 28%),radial-gradient(circle at 92% 12%,rgba(14,165,233,.10),transparent 25%),linear-gradient(145deg,#06110d 0%,#07130f 45%,#081018 100%); }
+.app-bg-glow { position:fixed;width:28rem;height:28rem;border-radius:9999px;filter:blur(100px);opacity:.16;pointer-events:none;z-index:0; }
+.app-bg-glow-one{top:6rem;left:-12rem;background:#22c55e}.app-bg-glow-two{top:28rem;right:-14rem;background:#06b6d4}.app-bg-glow-three{bottom:-14rem;left:40%;background:#84cc16}
+.page-enter{animation:pageEnter .45s cubic-bezier(.22,1,.36,1) both}@keyframes pageEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.bg-dot-grid{background-image:radial-gradient(rgba(167,243,208,.12) 1px,transparent 1px);background-size:24px 24px}.bg-cad-grid{background-size:40px 40px;background-image:linear-gradient(to right,rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.025) 1px,transparent 1px)}
+.card-surface,.spotlight-card{position:relative;background:linear-gradient(145deg,rgba(18,35,28,.94),rgba(10,18,15,.96));border:1px solid rgba(74,222,128,.14);border-radius:1.1rem;box-shadow:inset 0 1px rgba(255,255,255,.055),0 12px 40px rgba(0,0,0,.22);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.card-surface:hover,.spotlight-card:hover{transform:translateY(-2px);border-color:rgba(74,222,128,.30);box-shadow:0 18px 48px rgba(0,0,0,.30)}
+.spotlight-card{overflow:hidden}.spotlight-card::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(500px circle at var(--mouse-x,-500px) var(--mouse-y,-500px),rgba(74,222,128,.10),transparent 50%)}
+.text-agri{color:#86efac}.bg-agri-gradient{background:linear-gradient(135deg,#16a34a,#0d9488)}.agri-gradient-text{background:linear-gradient(90deg,#86efac,#67e8f9);-webkit-background-clip:text;background-clip:text;color:transparent}.laser-emerald{box-shadow:0 0 18px rgba(16,185,129,.30)}.laser-sky{box-shadow:0 0 18px rgba(56,189,248,.26)}.laser-amber{box-shadow:0 0 18px rgba(245,158,11,.24)}
+.table-header-cell{padding:.75rem 1rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#a7f3d0;background:#0d1b15;border-bottom:1px solid #19382a}.table-body-cell{padding:.875rem 1rem;font-size:.875rem;color:#e4e4e7;border-bottom:1px solid #14251d}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}.shimmer-skeleton{background:linear-gradient(90deg,#102018 0%,#19382a 50%,#102018 100%);background-size:200% 100%;animation:shimmer 1.6s infinite ease-in-out}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:#06110d}::-webkit-scrollbar-thumb{background:#28523d;border-radius:999px}
+.leaflet-container{width:100%;height:100%;border-radius:1rem;z-index:10;background:#0b1711!important;border:1px solid rgba(74,222,128,.18)}
+/* Natural satellite imagery: no inversion or hue rotation. */.leaflet-tile-pane{filter:brightness(.94) contrast(1.04) saturate(1.10)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
