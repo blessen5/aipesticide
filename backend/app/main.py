@@ -17,7 +17,6 @@ from app.services.demo_data_service import seed_demo_data
 
 
 from app.models import models as app_models, knowledge_models as app_knowledge_models
-from app.api import weather_scouting_router as app_weather_scouting
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
