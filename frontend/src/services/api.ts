@@ -22,7 +22,9 @@ const fetchWithAuth = async (input: RequestInfo | URL, init?: RequestInit): Prom
   return fetch(input, newInit);
 };
 
-const API_BASE = '/api';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+export const BASE_URL = API_BASE.replace(/\/api\/?$/, '');
+
 
 // Offline caching utility
 const offlineGet = async <T>(url: string, cacheKey: string): Promise<T> => {
