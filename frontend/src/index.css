@@ -4,71 +4,164 @@
 
 @layer base {
   body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #09090b;
+    color: #f4f4f5;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -0.025em;
   }
 }
 
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* ──────── HD Engineering Background Grid & Dot Matrix ──────── */
+.bg-dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-.glass-card {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: all 0.2s ease-in-out;
+.bg-cad-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
-.glass-card:hover {
-  border-color: rgba(34, 197, 94, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px -10px rgba(34, 197, 94, 0.15);
+.vignette-mask {
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 10%, #000 50%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 10%, #000 50%, transparent 100%);
 }
 
-.glow-emerald {
-  box-shadow: 0 0 25px -5px rgba(34, 197, 94, 0.4);
+/* ──────── HD Machined Hardware Surfaces & Specular Sheen ──────── */
+.card-surface {
+  position: relative;
+  background: #121215;
+  border: 1px solid #27272a;
+  border-radius: 0.875rem;
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    0 4px 24px -2px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
 }
 
-.glow-amber {
-  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.4);
+.card-surface:hover {
+  border-color: #3f3f46;
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 8px 30px -4px rgba(0, 0, 0, 0.6);
 }
 
-.glow-red {
-  box-shadow: 0 0 25px -5px rgba(239, 68, 68, 0.4);
+/* ──────── Interactive Cursor Spotlight ──────── */
+.spotlight-card {
+  position: relative;
+  background-color: #121215;
+  border: 1px solid #27272a;
+  border-radius: 0.875rem;
+  overflow: hidden;
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    0 4px 24px -2px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.2s ease;
 }
 
-/* Custom Scrollbar */
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+    rgba(255, 255, 255, 0.06),
+    transparent 50%
+  );
+  z-index: 1;
+}
+
+.spotlight-card:hover {
+  border-color: #3f3f46;
+}
+
+/* ──────── HD Laser Accent Glows ──────── */
+.laser-emerald {
+  box-shadow: 0 0 12px 1px rgba(16, 185, 129, 0.35);
+}
+
+.laser-sky {
+  box-shadow: 0 0 12px 1px rgba(56, 189, 248, 0.35);
+}
+
+.laser-amber {
+  box-shadow: 0 0 12px 1px rgba(245, 158, 11, 0.35);
+}
+
+/* ──────── Table Styling ──────── */
+.table-header-cell {
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+  background-color: #18181b;
+  border-bottom: 1px solid #27272a;
+}
+
+.table-body-cell {
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  color: #e4e4e7;
+  border-bottom: 1px solid #1f1f23;
+}
+
+/* ──────── Shimmer Skeleton Loading ──────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-skeleton {
+  background: linear-gradient(
+    90deg,
+    #18181b 0%,
+    #27272a 50%,
+    #18181b 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite ease-in-out;
+}
+
+/* ──────── Slim Dark Scrollbar ──────── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #09090b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #27272a;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #3f3f46;
 }
 
-/* Leaflet Map overrides for Dark Mode */
+/* Leaflet Map Dark Styling */
 .leaflet-container {
   width: 100%;
   height: 100%;
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   z-index: 10;
-  background-color: #090d16 !important;
+  background-color: #09090b !important;
+  border: 1px solid #27272a;
 }
 
 .leaflet-tile-pane {
-  filter: brightness(0.85) contrast(1.15) saturate(1.1) invert(0.9) hue-rotate(180deg);
+  filter: brightness(0.85) contrast(1.15) saturate(1.05) invert(0.92) hue-rotate(180deg);
 }
+
+

@@ -35,16 +35,21 @@ export const App: React.FC = () => {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950 pb-16 md:pb-0">
+      <div className="min-h-screen flex flex-col bg-zinc-950 text-zinc-100 selection:bg-emerald-500 selection:text-black pb-16 md:pb-0 font-sans relative overflow-x-hidden">
+        {/* HD Engineering Dot-Matrix Background with Vignette Mask */}
+        <div className="fixed inset-0 bg-dot-grid opacity-30 pointer-events-none vignette-mask" />
+        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-emerald-500/5 blur-[120px] pointer-events-none" />
+
         <Navbar currentRole={role} onLogout={handleLogout} onRoleChange={handleRoleChange} />
         
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/scan" element={<ScanPlant />} />
             <Route path="/detect" element={<Navigate to="/scan" replace />} />
             <Route path="/map" element={<PrescriptionMap />} />
             <Route path="/sprayer" element={<SprayerControl />} />
+            <Route path="/operations" element={<Navigate to="/sprayer" replace />} />
             <Route path="/history" element={<SprayHistory />} />
             <Route path="/audit" element={<AuditHistory />} />
             <Route path="/storage" element={<StorageRegistry />} />

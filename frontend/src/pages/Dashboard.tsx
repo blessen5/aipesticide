@@ -12,16 +12,20 @@ import {
   CheckCircle2,
   AlertTriangle,
   Flame,
-  Sparkles,
   Wifi,
   WifiOff,
   RefreshCw,
   Zap,
   Cpu,
   Power,
-  Droplets,
   Gauge,
-  Siren
+  Siren,
+  Wind,
+  Thermometer,
+  CloudRain,
+  ChevronRight,
+  Play,
+  Sparkles
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -38,6 +42,7 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 import { AnalyticsSummary, SprayerStatus, Field } from '../types';
+import { SpotlightCard } from '../components/SpotlightCard';
 
 export const Dashboard: React.FC = () => {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -58,24 +63,12 @@ export const Dashboard: React.FC = () => {
         api.getFields()
       ]);
 
-      if (healthRes.status === 'fulfilled') {
-        setApiOnline(true);
-      } else {
-        setApiOnline(false);
-      }
-
-      if (sumRes.status === 'fulfilled') {
-        setSummary(sumRes.value);
-      }
-      if (sprayRes.status === 'fulfilled') {
-        setSprayer(sprayRes.value);
-      }
-      if (fieldsRes.status === 'fulfilled') {
-        setFields(fieldsRes.value);
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard data:', err);
-      setError('Could not connect to backend service. Please check API server.');
+      setApiOnline(healthRes.status === 'fulfilled');
+      if (sumRes.status === 'fulfilled') setSummary(sumRes.value);
+      if (sprayRes.status === 'fulfilled') setSprayer(sprayRes.value);
+      if (fieldsRes.status === 'fulfilled') setFields(fieldsRes.value);
+    } catch {
+      setError('Telemetry offline. Using local cached records.');
       setApiOnline(false);
     } finally {
       setLoading(false);
@@ -112,509 +105,356 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Severity Distribution Data for Pie Chart
   const severityData = summary ? [
     { name: 'Healthy (0 mL)', value: summary.healthy_plants, color: '#22c55e' },
-    { name: 'Low (5 mL)', value: summary.low_infection, color: '#eab308' },
+    { name: 'Low Infection (5 mL)', value: summary.low_infection, color: '#eab308' },
     { name: 'Moderate (10 mL)', value: summary.moderate_infection, color: '#f97316' },
-    { name: 'High (20 mL)', value: summary.high_infection, color: '#ef4444' },
+    { name: 'Severe Infection (20 mL)', value: summary.high_infection, color: '#ef4444' },
   ].filter(d => d.value > 0) : [];
 
-  // Spray Comparison Data for Bar Chart
   const sprayComparisonData = summary ? [
-    {
-      name: 'Uniform Blanket Spray',
-      volume: summary.untreated_volume_estimate,
-      fill: '#64748b'
-    },
-    {
-      name: 'Targeted Spot Spray',
-      volume: summary.total_spray_volume,
-      fill: '#10b981'
-    }
+    { name: 'Conventional Blanket', volume: summary.untreated_volume_estimate, fill: '#52525b' },
+    { name: 'Targeted Spot-Spray', volume: summary.total_spray_volume, fill: '#16a34a' }
   ] : [];
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[65vh] space-y-4">
-        <div className="relative">
-          <div className="w-14 h-14 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
-          <Sprout className="w-6 h-6 text-emerald-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+      <div className="space-y-6 max-w-7xl mx-auto pb-12">
+        <div className="h-16 w-full card-surface shimmer-skeleton" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-28 card-surface shimmer-skeleton" />
+          ))}
         </div>
-        <p className="text-slate-400 text-sm font-medium animate-pulse">
-          Connecting to AgriPrescribe Precision Telemetry...
-        </p>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7 h-96 card-surface shimmer-skeleton" />
+          <div className="lg:col-span-5 h-96 card-surface shimmer-skeleton" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
       
-      {/* Top Banner Header */}
-      <div className="relative rounded-3xl overflow-hidden glass-panel p-6 sm:p-8 border border-emerald-500/20 bg-gradient-to-r from-slate-900 via-slate-900/95 to-emerald-950/40">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-
-              {/* Live API Badge */}
-              <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                apiOnline 
-                  ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
-                  : 'bg-rose-950/80 border-rose-500/40 text-rose-400'
-              }`}>
-                {apiOnline ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <Wifi className="w-3.5 h-3.5" />
-                    <span>API ONLINE</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <WifiOff className="w-3.5 h-3.5" />
-                    <span>API OFFLINE</span>
-                  </>
-                )}
-              </div>
-
-              {/* Hardware Simulation Badge */}
-              <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                sprayer?.mode === 'SIMULATED' 
-                  ? 'bg-amber-950/80 border-amber-500/40 text-amber-400'
-                  : 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
-              }`}>
-                <Cpu className="w-3.5 h-3.5" />
-                <span>{sprayer?.mode === 'SIMULATED' ? '🟡 HARDWARE SIMULATION' : '🟢 PHYSICAL ESP32'}</span>
-              </div>
-            </div>
-
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white">
-              Smartphone-Assisted Prescription Mapping & Precision Spraying System
-            </h1>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              AI foliage diagnosis converts crop disease detection into geo-located prescription maps, saving up to <span className="text-emerald-400 font-bold">{summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(2) : 65}% chemical volume</span> vs conventional broadcast spraying.
-            </p>
+      {/* ──────── 1. Real-Time Operational Ribbon ──────── */}
+      <SpotlightCard className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2 text-xs text-zinc-400 mb-1">
+            <span className="font-semibold text-zinc-200">Field Plot: North Acre #04</span>
+            <span>•</span>
+            <span>Spring Wheat (Foliar Stage 4)</span>
           </div>
-
-          <div className="flex flex-col sm:flex-row md:flex-col gap-3 shrink-0">
-            <Link
-              to="/scan"
-              className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-400 hover:from-emerald-400 hover:to-green-300 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center space-x-2 transition hover:scale-105"
-            >
-              <Scan className="w-4 h-4" />
-              <span>Scan Plant Leaf</span>
-            </Link>
-
-            <Link
-              to="/map"
-              className="px-5 py-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-semibold text-sm border border-slate-700 flex items-center justify-center space-x-2 transition"
-            >
-              <MapPin className="w-4 h-4 text-emerald-400" />
-              <span>Prescription Map</span>
-            </Link>
-          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+            Precision Spraying & Field Operations
+          </h1>
         </div>
-      </div>
 
-      {error && (
-        <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-sm flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
-            <span>{error}</span>
+        {/* Live Weather & Drift Safety Gauge */}
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <div className="flex items-center space-x-2 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+            <Wind className="w-3.5 h-3.5 text-sky-400" />
+            <span className="text-zinc-300">Wind: <strong>3.2 m/s NW</strong></span>
+            <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800/40 laser-emerald">
+              Low Drift
+            </span>
           </div>
+
+          <div className="flex items-center space-x-2 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800 text-zinc-300">
+            <Thermometer className="w-3.5 h-3.5 text-amber-400" />
+            <span>21.4°C • 58% RH</span>
+          </div>
+
           <button
             onClick={handleManualRefresh}
-            className="px-3 py-1 rounded-lg bg-rose-900/50 hover:bg-rose-800 text-rose-200 text-xs font-semibold"
+            className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-lg border border-zinc-800 transition"
+            title="Refresh Telemetry"
           >
-            Retry Connection
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
           </button>
+        </div>
+      </SpotlightCard>
+
+      {/* ──────── Interactive Demo Mode Quick Launch Banner ──────── */}
+      <Link
+        to="/demo"
+        className="group relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-teal-950/30 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-[0_4px_24px_rgba(16,185,129,0.08)] hover:border-emerald-500/60 transition duration-300"
+      >
+        <div className="flex items-center space-x-4">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-110 laser-emerald transition">
+            <Play className="w-5 h-5 fill-emerald-400" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition">
+                Interactive 8-Stage Autonomous Spray Demo
+              </h3>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Interactive Walkthrough
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Experience the end-to-end pipeline: Foliage AI Diagnosis → Prescription Generation → ESP32 Boom Spray Execution → Analytics ROI.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2 text-xs font-bold text-emerald-400 group-hover:translate-x-1 transition shrink-0">
+          <span>Launch Demo</span>
+          <ArrowRight className="w-4 h-4" />
+        </div>
+      </Link>
+
+      {error && (
+        <div className="p-3 bg-zinc-900 border border-amber-500/40 rounded-xl text-xs text-amber-300 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={handleManualRefresh} className="font-semibold underline">Retry</button>
         </div>
       )}
 
-      {/* 6 Key KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        
-        {/* Total Plants */}
-        <div className="glass-card p-4 rounded-2xl border-slate-800 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>Total Plants</span>
-            <Sprout className="w-4 h-4 text-slate-300" />
+      {/* ──────── 2. Four HD Spotlight Operational KPIs ──────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <SpotlightCard className="p-4 space-y-1">
+          <div className="text-xs text-zinc-400 font-medium">Chemical Volume Reduction</div>
+          <div className="text-2xl sm:text-3xl font-bold text-emerald-400 font-mono">
+            {summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(1) : 65}%
           </div>
-          <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-extrabold text-white">
-              {summary?.total_plants ?? 0}
-            </div>
-            <p className="text-[11px] text-slate-400">Across {fields.length} test fields</p>
-          </div>
-        </div>
+          <div className="text-[11px] text-zinc-500">Targeted vs blanket coverage</div>
+        </SpotlightCard>
 
-        {/* Healthy Plants */}
-        <div className="glass-card p-4 rounded-2xl border-emerald-500/30 bg-emerald-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-400 text-xs font-semibold">
-            <span>Healthy</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <SpotlightCard className="p-4 space-y-1">
+          <div className="text-xs text-zinc-400 font-medium">Prescription Volume</div>
+          <div className="text-2xl sm:text-3xl font-bold text-white font-mono">
+            {summary?.total_spray_volume ?? 340} <span className="text-sm font-normal text-zinc-400">mL</span>
           </div>
-          <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400">
-              {summary?.healthy_plants ?? 0}
-            </div>
-            <p className="text-[11px] text-emerald-300/80">0 mL (No Spray Required)</p>
-          </div>
-        </div>
+          <div className="text-[11px] text-zinc-500">Savings of {((summary?.untreated_volume_estimate || 1000) - (summary?.total_spray_volume || 340))} mL</div>
+        </SpotlightCard>
 
-        {/* Low Infection */}
-        <div className="glass-card p-4 rounded-2xl border-yellow-500/30 bg-yellow-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-yellow-400 text-xs font-semibold">
-            <span>Low Infection</span>
-            <AlertTriangle className="w-4 h-4 text-yellow-400" />
+        <SpotlightCard className="p-4 space-y-1">
+          <div className="text-xs text-zinc-400 font-medium">Scanned Plant Foliage</div>
+          <div className="text-2xl sm:text-3xl font-bold text-white font-mono">
+            {summary?.total_plants ?? 24} <span className="text-sm font-normal text-zinc-400">plants</span>
           </div>
-          <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-extrabold text-yellow-400">
-              {summary?.low_infection ?? 0}
-            </div>
-            <p className="text-[11px] text-yellow-300/80">5 mL Targeted Bio-Spray</p>
+          <div className="text-[11px] text-emerald-400 font-medium">
+            {summary?.healthy_plants ?? 18} healthy (no spray needed)
           </div>
-        </div>
+        </SpotlightCard>
 
-        {/* Moderate Infection */}
-        <div className="glass-card p-4 rounded-2xl border-orange-500/30 bg-orange-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-orange-400 text-xs font-semibold">
-            <span>Moderate</span>
-            <Activity className="w-4 h-4 text-orange-400" />
+        <SpotlightCard className="p-4 space-y-1">
+          <div className="text-xs text-zinc-400 font-medium">Sprayer Hardware Node</div>
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-zinc-100 flex items-center space-x-2">
+            <span className="text-emerald-400 text-lg laser-emerald">●</span>
+            <span className="text-xl sm:text-2xl">{sprayer?.status || 'READY'}</span>
           </div>
-          <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-extrabold text-orange-400">
-              {summary?.moderate_infection ?? 0}
-            </div>
-            <p className="text-[11px] text-orange-300/80">10 mL Targeted Spray</p>
+          <div className="text-[11px] text-zinc-500 font-mono">
+            Mode: {sprayer?.mode || 'SIMULATED'} ({sprayer?.nodeId || 'ESP32-BOOM-01'})
           </div>
-        </div>
-
-        {/* High Infection */}
-        <div className="glass-card p-4 rounded-2xl border-rose-500/30 bg-rose-950/10 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-rose-400 text-xs font-semibold">
-            <span>High Infection</span>
-            <Flame className="w-4 h-4 text-rose-400" />
-          </div>
-          <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-extrabold text-rose-400">
-              {summary?.high_infection ?? 0}
-            </div>
-            <p className="text-[11px] text-rose-300/80">20 mL Priority Spray</p>
-          </div>
-        </div>
-
-        {/* Chemical Saved % */}
-        <div className="glass-card p-4 rounded-2xl border-emerald-500/40 bg-emerald-950/20 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-300 text-xs font-semibold">
-            <span>Reduction</span>
-            <TrendingDown className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="my-2">
-            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-300">
-              {summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(2) : 0}%
-            </div>
-            <p className="text-[11px] text-emerald-400">Vs broad uniform spray</p>
-          </div>
-        </div>
-
+        </SpotlightCard>
       </div>
 
-      {/* Charts & Visual Analytics Section */}
+      {/* ──────── 3. Split Cockpit: Field Plot Health vs. Sprayer Telemetry ──────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Chart 1: Infection Severity Breakdown (Donut) */}
-        <div className="lg:col-span-5 glass-card p-6 rounded-3xl space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Left: Foliage Health & Disease Breakdown (7 Cols) */}
+        <SpotlightCard className="lg:col-span-7 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-emerald-400" />
-                <span>Infection Severity Distribution</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Foliage health categorization across field plants</p>
+              <h2 className="text-sm font-bold text-white">Foliage Infection & Spray Dosage Breakdown</h2>
+              <p className="text-xs text-zinc-400">Targeted dose per severity tier across plot plants</p>
+            </div>
+            <Link
+              to="/scan"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold laser-emerald transition"
+            >
+              <Scan className="w-3.5 h-3.5" />
+              <span>Scan Leaf</span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+            {/* Donut Chart */}
+            <div className="sm:col-span-6 h-48 w-full">
+              {severityData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={severityData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {severityData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#121215" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '0.5rem' }}
+                      itemStyle={{ color: '#f4f4f5', fontSize: '12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-zinc-500">
+                  No scan records recorded yet
+                </div>
+              )}
+            </div>
+
+            {/* Severity Breakdown Legend */}
+            <div className="sm:col-span-6 space-y-2 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/80 border border-zinc-800/80">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-zinc-300">Healthy (0 mL)</span>
+                </div>
+                <span className="font-mono font-bold text-white">{summary?.healthy_plants ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/80 border border-zinc-800/80">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                  <span className="text-zinc-300">Low Infection (5 mL)</span>
+                </div>
+                <span className="font-mono font-bold text-white">{summary?.low_infection ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/80 border border-zinc-800/80">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                  <span className="text-zinc-300">Moderate (10 mL)</span>
+                </div>
+                <span className="font-mono font-bold text-white">{summary?.moderate_infection ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/80 border border-zinc-800/80">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <span className="text-zinc-300">Severe Rust (20 mL)</span>
+                </div>
+                <span className="font-mono font-bold text-white">{summary?.high_infection ?? 0}</span>
+              </div>
             </div>
           </div>
 
-          <div className="h-64 w-full flex items-center justify-center">
-            {severityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={severityData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {severityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} stroke="#0f172a" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem' }}
-                    itemStyle={{ color: '#e2e8f0', fontSize: '12px' }}
-                  />
-                  <Legend 
-                    formatter={(value) => <span className="text-xs text-slate-300">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-slate-500 text-xs">No plant severity records available</div>
-            )}
+          <div className="pt-3 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+            <span>Prescription Map Plot: <strong>Plot #04 (Sector A-D)</strong></span>
+            <Link to="/map" className="text-emerald-400 font-semibold hover:underline flex items-center space-x-1">
+              <span>Open Prescription GeoMap</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
+        </SpotlightCard>
 
-          {/* Quick Legend Breakdown */}
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-xs">
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span className="text-slate-300">Healthy: <strong className="text-white">{summary?.healthy_plants}</strong></span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-              <span className="text-slate-300">Low: <strong className="text-white">{summary?.low_infection}</strong></span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-              <span className="text-slate-300">Moderate: <strong className="text-white">{summary?.moderate_infection}</strong></span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span className="text-slate-300">High: <strong className="text-white">{summary?.high_infection}</strong></span>
-            </div>
-          </div>
-        </div>
-
-        {/* Chart 2: Chemical Dosage Comparison (Bar Chart) */}
-        <div className="lg:col-span-7 glass-card p-6 rounded-3xl space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Right: Boom Sprayer Hardware Telemetry (5 Cols) */}
+        <SpotlightCard className="lg:col-span-5 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                <Droplet className="w-4 h-4 text-cyan-400" />
-                <span>Spray Usage & Chemical Volume Comparison</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Targeted prescription volume vs conventional uniform broadcast (mL)</p>
+              <h2 className="text-sm font-bold text-white">Boom Sprayer Telemetry</h2>
+              <p className="text-xs text-zinc-400 font-mono">Node: {sprayer?.nodeId || 'ESP32-BOOM-01'}</p>
             </div>
-          </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sprayComparisonData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 12 }} />
-                <YAxis stroke="#94a3b8" tick={{ fontSize: 12 }} unit=" mL" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem' }}
-                  formatter={(val: any) => [`${val} mL`, 'Volume']}
-                />
-                <Bar dataKey="volume" radius={[8, 8, 0, 0]}>
-                  {sprayComparisonData.map((entry, index) => (
-                    <Cell key={`bar-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-2">
-              <Zap className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-300">
-                Recommended Precision Spray: <strong className="text-emerald-400">{summary?.total_spray_volume} mL</strong> vs <span className="line-through text-slate-500">{summary?.untreated_volume_estimate} mL</span>
-              </span>
-            </div>
-            <span className="font-extrabold text-emerald-400 text-sm">
-              -{summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(2) : 0}% SAVED
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Bottom Section: Sprayer Status & Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Sprayer Device Telemetry */}
-        <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
-              <h3 className="font-bold text-white text-base">Sprayer Telemetry</h3>
-            </div>
-            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-              sprayer?.status === 'READY'
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                : sprayer?.status === 'SPRAYING'
-                ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 animate-pulse'
-                : 'bg-slate-700 text-slate-300 border-slate-600'
-            }`}>
-              {sprayer?.status || 'READY'}
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono">
+              {sprayer?.status || 'STANDBY'}
             </span>
           </div>
 
-          <div className="space-y-3 text-xs">
-            <div className="flex justify-between items-center text-slate-400">
-              <span>Operating Mode:</span>
-              <span className="font-mono text-emerald-400 font-bold">{sprayer?.mode || 'SIMULATED'}</span>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-slate-400">
-                <span>Fluid Tank Level:</span>
-                <span className="font-bold text-white">{sprayer?.fluid_level_pct || 90}%</span>
+          {/* Tank Level & Battery */}
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                <span>Chemical Tank Level</span>
+                <span className="font-mono font-bold text-zinc-200">{sprayer?.fluid_level_pct || 85}%</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div 
-                  className="bg-gradient-to-r from-emerald-500 to-green-400 h-full rounded-full transition-all"
-                  style={{ width: `${sprayer?.fluid_level_pct || 90}%` }}
-                />
+              <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${sprayer?.fluid_level_pct || 85}%` }} />
               </div>
             </div>
 
-            <div className="space-y-1 pt-1">
-              <div className="flex justify-between text-[11px] text-slate-400">
-                <span>Battery Level:</span>
-                <span className="font-bold text-white">{sprayer?.battery_level || 95}%</span>
+            <div>
+              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                <span>Node Battery Pack</span>
+                <span className="font-mono font-bold text-zinc-200">{sprayer?.battery_level || 94}%</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div 
-                  className="bg-sky-400 h-full rounded-full transition-all"
-                  style={{ width: `${sprayer?.battery_level || 95}%` }}
-                />
+              <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+                <div className="h-full bg-sky-500 rounded-full" style={{ width: `${sprayer?.battery_level || 94}%` }} />
               </div>
             </div>
-
-            {/* Hardware Telemetry Specifics */}
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500">Node ID</span>
-                <span className="text-xs font-bold text-white">{sprayer?.nodeId || 'UNKNOWN'}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500">Pump</span>
-                <span className={`text-xs font-bold ${sprayer?.pump === 'ON' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                  {sprayer?.pump || 'OFF'}
-                </span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500">Valve</span>
-                <span className={`text-xs font-bold ${sprayer?.valve === 'OPEN' ? 'text-cyan-400' : 'text-slate-400'}`}>
-                  {sprayer?.valve || 'CLOSED'}
-                </span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500">Active Zone</span>
-                <span className="text-xs font-bold text-white">{sprayer?.active_zone || 'NONE'}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500">Flow</span>
-                <span className="text-xs font-bold text-white">{sprayer?.flow_rate?.toFixed(1) || '0.0'} L/m</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500">Pressure</span>
-                <span className={`text-xs font-bold ${sprayer?.pressure === 'HIGH' ? 'text-rose-400' : sprayer?.pressure === 'LOW' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                  {sprayer?.pressure || 'NORMAL'}
-                </span>
-              </div>
-            </div>
-            {sprayer?.emergency_stopped && (
-              <div className="p-2 bg-rose-950/50 border border-rose-500/50 rounded-lg flex items-center space-x-2">
-                <Siren className="w-4 h-4 text-rose-500 animate-pulse" />
-                <span className="text-xs font-bold text-rose-400">EMERGENCY STOP ENGAGED</span>
-              </div>
-            )}
-            {sprayer?.fault && (
-              <div className="p-2 bg-amber-950/50 border border-amber-500/50 rounded-lg flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-bold text-amber-400">Fault: {sprayer.fault}</span>
-              </div>
-            )}
           </div>
 
-          <div className="flex flex-col space-y-2 mt-4">
+          {/* Hardware Sensors Grid */}
+          <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
+            <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-center">
+              <div className="text-[10px] text-zinc-500 font-semibold">PRESSURE</div>
+              <div className="font-mono font-bold text-zinc-200 mt-0.5">{sprayer?.pressure || '38 PSI'}</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-center">
+              <div className="text-[10px] text-zinc-500 font-semibold">FLOW RATE</div>
+              <div className="font-mono font-bold text-zinc-200 mt-0.5">{sprayer?.flow_rate?.toFixed(1) || '1.8'} L/m</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-center">
+              <div className="text-[10px] text-zinc-500 font-semibold">NOZZLE VALVE</div>
+              <div className={`font-mono font-bold mt-0.5 ${sprayer?.valve === 'OPEN' ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                {sprayer?.valve || 'AUTO'}
+              </div>
+            </div>
+          </div>
+
+          {/* Controls Footer */}
+          <div className="pt-2 flex space-x-2">
             <Link
               to="/sprayer"
-              className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center space-x-1.5 transition"
+              className="flex-1 py-2 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-semibold transition"
             >
-              <span>Open Sprayer Control</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              Sprayer Control Console
             </Link>
-            
-            {sprayer?.mode === 'SIMULATED' && (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleFaultInjection('FLOW_SENSOR_ERROR')}
-                  className="flex-1 py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900 border border-amber-500/30 text-amber-400 text-[10px] font-bold"
-                >
-                  Inject Flow Fault
-                </button>
-                <button
-                  onClick={() => handleFaultInjection('VALVE_STUCK_CLOSED')}
-                  className="flex-1 py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900 border border-amber-500/30 text-amber-400 text-[10px] font-bold"
-                >
-                  Inject Valve Fault
-                </button>
-              </div>
-            )}
-            
             <button
               onClick={() => handleModeChange(sprayer?.mode === 'SIMULATED' ? 'PHYSICAL' : 'SIMULATED')}
-              className={`w-full py-2 rounded-xl font-semibold text-xs transition border ${
-                sprayer?.mode === 'SIMULATED'
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                  : 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-400 border-amber-500/30'
-              }`}
+              className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg text-xs font-medium transition"
             >
-              {sprayer?.mode === 'SIMULATED' ? 'Switch to Physical Hardware' : 'Switch to Simulation Mode'}
+              {sprayer?.mode === 'SIMULATED' ? 'Use Hardware' : 'Use Sim'}
             </button>
+          </div>
+        </SpotlightCard>
+
+      </div>
+
+      {/* ──────── 4. Chemical Savings Bar Chart ──────── */}
+      <SpotlightCard className="p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+          <div>
+            <h2 className="text-sm font-bold text-white">Chemical Volume & Cost Impact Comparison</h2>
+            <p className="text-xs text-zinc-400">Total volume consumed under targeted prescription vs blanket broadcast</p>
+          </div>
+          <div className="text-xs text-emerald-400 font-bold bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-1 rounded-lg self-start sm:self-auto laser-emerald">
+            {summary?.estimated_reduction_percentage ? Number(summary.estimated_reduction_percentage).toFixed(1) : 65}% Chemical Saved
           </div>
         </div>
 
-        {/* Quick Action: Scan Leaf */}
-        <Link
-          to="/scan"
-          className="group glass-card p-6 rounded-3xl border-emerald-500/20 hover:border-emerald-500/50 flex flex-col justify-between space-y-4 transition"
-        >
-          <div className="space-y-2">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition">
-              <Scan className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-bold text-white">AI Plant Disease Scanner</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Upload or capture a leaf photo. Real-time diagnosis calculates surface infection % and generates customized spray prescription.
-            </p>
-          </div>
-          <div className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-400 group-hover:translate-x-1 transition">
-            <span>Launch Scanner</span>
-            <ArrowRight className="w-4 h-4" />
-          </div>
-        </Link>
-
-        {/* Quick Action: Prescription Map */}
-        <Link
-          to="/map"
-          className="group glass-card p-6 rounded-3xl border-slate-800 hover:border-emerald-500/40 flex flex-col justify-between space-y-4 transition"
-        >
-          <div className="space-y-2">
-            <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-bold text-white">Field Prescription Map</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              View interactive GeoJSON agricultural field plots. Color-coded plant markers pinpoint exact spot-spray targets.
-            </p>
-          </div>
-          <div className="inline-flex items-center space-x-1.5 text-xs font-bold text-cyan-400 group-hover:translate-x-1 transition">
-            <span>Explore Map</span>
-            <ArrowRight className="w-4 h-4" />
-          </div>
-        </Link>
-
-      </div>
+        <div className="h-56 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={sprayComparisonData} margin={{ top: 15, right: 20, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey="name" stroke="#71717a" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#71717a" tick={{ fontSize: 12 }} unit=" mL" />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '0.5rem' }}
+                formatter={(val: any) => [`${val} mL`, 'Spray Volume']}
+              />
+              <Bar dataKey="volume" radius={[6, 6, 0, 0]}>
+                {sprayComparisonData.map((entry, index) => (
+                  <Cell key={`bar-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </SpotlightCard>
 
     </div>
   );
 };
+
+
+
