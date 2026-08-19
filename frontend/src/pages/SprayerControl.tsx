@@ -1,16 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { 
-  Radio, 
-  Battery, 
-  Droplet, 
-  CheckCircle2, 
-  AlertTriangle, 
-  RefreshCw, 
-  Play, 
-  Square, 
-  Zap, 
-  Sparkles, 
-  ShieldAlert, 
+import {
+  Radio,
+  Battery,
+  Droplet,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Play,
+  Square,
+  Zap,
+  Sparkles,
+  ShieldAlert,
   Layers,
   Flame,
   Activity,
@@ -30,7 +30,7 @@ export const SprayerControl: React.FC = () => {
   const [selectedFieldId, setSelectedFieldId] = useState<number>(1);
   const [zones, setZones] = useState<Zone[]>([]);
   const [recentEvents, setRecentEvents] = useState<SprayEvent[]>([]);
-  
+
   // Single Spray Form State
   const [selectedZoneId, setSelectedZoneId] = useState<number | string>('');
   const [volumeMl, setVolumeMl] = useState<number>(10.0);
@@ -61,7 +61,7 @@ export const SprayerControl: React.FC = () => {
       setFields(fieldsRes);
       setZones(zonesRes);
       setRecentEvents(historyRes);
-      
+
       if (zonesRes.length > 0 && !selectedZoneId) {
         setSelectedZoneId(zonesRes[0].id);
         setVolumeMl(10.0);
@@ -77,7 +77,7 @@ export const SprayerControl: React.FC = () => {
     loadSprayerData();
     const interval = setInterval(() => {
       if (!isMissionRunning) {
-        api.getSprayerStatus().then(setStatus).catch(() => {});
+        api.getSprayerStatus().then(setStatus).catch(() => { });
       }
     }, 4000);
     return () => clearInterval(interval);
@@ -144,10 +144,10 @@ export const SprayerControl: React.FC = () => {
     try {
       // 1. Call Backend Automated Execution API
       const result = await api.executeFieldPrescription(selectedFieldId, 'SIMULATED');
-      
+
       // 2. Play Smooth Real-Time Simulation Walkthrough in UI
       const totalSteps = result.execution_logs.length;
-      
+
       for (let i = 0; i < totalSteps; i++) {
         const log = result.execution_logs[i];
         setCurrentMissionZone(log.zone_id ? String(log.zone_id) : 'UNKNOWN');
@@ -233,7 +233,7 @@ export const SprayerControl: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-16 max-w-6xl mx-auto px-2 sm:px-4">
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -254,11 +254,10 @@ export const SprayerControl: React.FC = () => {
         <div className="flex items-center space-x-3">
           <button
             onClick={activeSprayerState === 'IDLE' ? handleStartMaster : handleStopMaster}
-            className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-2 transition shadow-lg ${
-              activeSprayerState === 'IDLE'
+            className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-2 transition shadow-lg ${activeSprayerState === 'IDLE'
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25'
                 : 'bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-600/50'
-            }`}
+              }`}
           >
             {activeSprayerState === 'IDLE' ? (
               <>
@@ -300,11 +299,10 @@ export const SprayerControl: React.FC = () => {
       </div>
 
       {feedbackMsg && (
-        <div className={`p-4 rounded-2xl border text-xs flex items-center space-x-2.5 animate-fadeIn shadow-lg ${
-          feedbackMsg.type === 'success'
+        <div className={`p-4 rounded-2xl border text-xs flex items-center space-x-2.5 animate-fadeIn shadow-lg ${feedbackMsg.type === 'success'
             ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
             : 'bg-rose-950/80 border-rose-500/40 text-rose-300'
-        }`}>
+          }`}>
           {feedbackMsg.type === 'success' ? (
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
           ) : (
@@ -316,7 +314,7 @@ export const SprayerControl: React.FC = () => {
 
       {/* 1. VISUAL ANIMATED SPRAYER REPRESENTATION */}
       <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6 shadow-2xl bg-slate-950/80 relative overflow-hidden">
-        
+
         {/* Background glow during spraying */}
         {activeSprayerState === 'SPRAYING' && (
           <div className="absolute inset-0 bg-emerald-500/5 animate-pulse pointer-events-none" />
@@ -333,17 +331,16 @@ export const SprayerControl: React.FC = () => {
 
           {/* Current State Badge */}
           <div className="flex items-center space-x-2">
-            <span className={`px-3.5 py-1.5 rounded-full text-xs font-black tracking-wider flex items-center space-x-1.5 border shadow-lg ${
-              activeSprayerState === 'SPRAYING'
+            <span className={`px-3.5 py-1.5 rounded-full text-xs font-black tracking-wider flex items-center space-x-1.5 border shadow-lg ${activeSprayerState === 'SPRAYING'
                 ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 animate-pulse'
                 : activeSprayerState === 'MOVING'
-                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-bounce'
-                : activeSprayerState === 'COMPLETED'
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                : activeSprayerState === 'READY'
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-slate-800 text-slate-400 border-slate-700'
-            }`}>
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-bounce'
+                  : activeSprayerState === 'COMPLETED'
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : activeSprayerState === 'READY'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}>
               <span className={`w-2 h-2 rounded-full ${activeSprayerState === 'SPRAYING' ? 'bg-sky-400 animate-ping' : activeSprayerState === 'MOVING' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
               <span>{activeSprayerState}</span>
             </span>
@@ -352,16 +349,15 @@ export const SprayerControl: React.FC = () => {
 
         {/* Sprayer Chassis Animation Stage */}
         <div className="relative py-8 px-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center justify-center space-y-4">
-          
+
           {/* Animated Rover / Actuator Icon */}
           <div className="relative">
-            <div className={`w-24 h-24 rounded-3xl flex items-center justify-center border-2 transition-all duration-500 ${
-              activeSprayerState === 'SPRAYING'
+            <div className={`w-24 h-24 rounded-3xl flex items-center justify-center border-2 transition-all duration-500 ${activeSprayerState === 'SPRAYING'
                 ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 scale-110 shadow-2xl shadow-emerald-500/40'
                 : activeSprayerState === 'MOVING'
-                ? 'bg-amber-500/20 border-amber-400 text-amber-300 translate-x-2 shadow-xl shadow-amber-500/20'
-                : 'bg-slate-950 border-slate-700 text-slate-400'
-            }`}>
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-300 translate-x-2 shadow-xl shadow-amber-500/20'
+                  : 'bg-slate-950 border-slate-700 text-slate-400'
+              }`}>
               <Cpu className={`w-12 h-12 ${activeSprayerState === 'SPRAYING' ? 'animate-pulse text-emerald-400' : ''}`} />
             </div>
 
@@ -399,7 +395,7 @@ export const SprayerControl: React.FC = () => {
                 <span className="text-emerald-400 font-bold">{missionProgress}%</span>
               </div>
               <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800">
-                <div 
+                <div
                   className="bg-gradient-to-r from-emerald-500 via-green-400 to-emerald-400 h-full rounded-full transition-all duration-300"
                   style={{ width: `${missionProgress}%` }}
                 />
@@ -411,7 +407,7 @@ export const SprayerControl: React.FC = () => {
 
         {/* Telemetry Metrics Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          
+
           <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1">
             <span className="text-[11px] text-slate-400">Water Fluid Tank</span>
             <div className="text-lg font-black text-sky-400">{status?.fluid_level_pct || 90}%</div>
@@ -446,7 +442,7 @@ export const SprayerControl: React.FC = () => {
 
       {/* 2. AUTOMATED FIELD MISSION SIMULATOR (START DEMO SPRAYING) */}
       <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-emerald-500/40 space-y-6 shadow-2xl bg-slate-900/90">
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-1">
@@ -483,11 +479,10 @@ export const SprayerControl: React.FC = () => {
         <button
           onClick={handleStartDemoSpraying}
           disabled={isMissionRunning}
-          className={`w-full py-4 sm:py-5 rounded-2xl font-black text-base sm:text-lg shadow-xl flex items-center justify-center space-x-3 transition transform active:scale-98 ${
-            isMissionRunning
+          className={`w-full py-4 sm:py-5 rounded-2xl font-black text-base sm:text-lg shadow-xl flex items-center justify-center space-x-3 transition transform active:scale-98 ${isMissionRunning
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
               : 'bg-gradient-to-r from-emerald-500 via-green-400 to-emerald-400 hover:from-emerald-400 text-slate-950 shadow-emerald-500/30 hover:scale-101'
-          }`}
+            }`}
         >
           {isMissionRunning ? (
             <>
@@ -513,7 +508,7 @@ export const SprayerControl: React.FC = () => {
               <span>{missionLogs.length} Steps Recorded</span>
             </div>
 
-            <div 
+            <div
               ref={logContainerRef}
               className="bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-xs max-h-56 overflow-y-auto space-y-1.5 text-slate-300 shadow-inner"
             >
@@ -524,8 +519,8 @@ export const SprayerControl: React.FC = () => {
                     log.action === 'SPRAYING'
                       ? 'text-emerald-400 font-bold'
                       : log.action === 'SKIPPED'
-                      ? 'text-yellow-400'
-                      : 'text-slate-400'
+                        ? 'text-yellow-400'
+                        : 'text-slate-400'
                   }>
                     {log.details}
                   </span>
@@ -550,7 +545,7 @@ export const SprayerControl: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
+
           {/* Target Zone Selector */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300">Target Zone:</label>
@@ -589,11 +584,10 @@ export const SprayerControl: React.FC = () => {
         <button
           onClick={handleTriggerSingleSpray}
           disabled={isSingleSpraying || isMissionRunning}
-          className={`w-full py-4 rounded-xl font-extrabold text-sm shadow-lg flex items-center justify-center space-x-2 transition ${
-            isSingleSpraying || isMissionRunning
+          className={`w-full py-4 rounded-xl font-extrabold text-sm shadow-lg flex items-center justify-center space-x-2 transition ${isSingleSpraying || isMissionRunning
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
               : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25'
-          }`}
+            }`}
         >
           {isSingleSpraying ? (
             <>

@@ -41,7 +41,7 @@ export const App: React.FC = () => {
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-emerald-500/5 blur-[120px] pointer-events-none" />
 
         <Navbar currentRole={role} onLogout={handleLogout} onRoleChange={handleRoleChange} />
-        
+
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
           <Routes>
             <Route path="/" element={<Dashboard />} />

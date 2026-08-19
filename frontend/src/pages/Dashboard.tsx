@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Sprout, 
-  Scan, 
-  MapPin, 
-  Radio, 
-  Droplet, 
+import {
+  Sprout,
+  Scan,
+  MapPin,
+  Radio,
+  Droplet,
   ArrowRight,
   TrendingDown,
   Activity,
@@ -27,18 +27,18 @@ import {
   Play,
   Sparkles
 } from 'lucide-react';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip, 
-  Legend, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid 
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid
 } from 'recharts';
 import { api } from '../services/api';
 import { AnalyticsSummary, SprayerStatus, Field } from '../types';
@@ -136,7 +136,7 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      
+
       {/* ──────── 1. Real-Time Operational Ribbon ──────── */}
       <SpotlightCard className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
@@ -257,7 +257,7 @@ export const Dashboard: React.FC = () => {
 
       {/* ──────── 3. Split Cockpit: Field Plot Health vs. Sprayer Telemetry ──────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left: Foliage Health & Disease Breakdown (7 Cols) */}
         <SpotlightCard className="lg:col-span-7 p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-zinc-800 pb-3">

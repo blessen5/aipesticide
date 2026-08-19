@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
-import { 
-  MapPin, 
-  Sprout, 
-  AlertTriangle, 
-  Flame, 
-  CheckCircle2, 
-  Radio, 
-  Droplet, 
-  TrendingDown, 
+import {
+  MapPin,
+  Sprout,
+  AlertTriangle,
+  Flame,
+  CheckCircle2,
+  Radio,
+  Droplet,
+  TrendingDown,
   Activity,
   Layers,
   Filter,
@@ -142,13 +142,13 @@ export const PrescriptionMap: React.FC = () => {
     }
   };
 
-  const centerCoords: [number, number] = activeField 
+  const centerCoords: [number, number] = activeField
     ? [activeField.latitude, activeField.longitude]
     : [30.9010, 75.8573];
 
   return (
     <div className="space-y-6 pb-12">
-      
+
       {/* Header & Field Selector Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -198,7 +198,7 @@ export const PrescriptionMap: React.FC = () => {
       {/* Field Summary Metrics Bar */}
       {mapData && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          
+
           <div className="glass-card p-3.5 rounded-2xl border-slate-800">
             <span className="text-[11px] text-slate-400">Total Plants</span>
             <div className="text-2xl font-black text-white">{mapData.summary.total_plants}</div>
@@ -246,10 +246,10 @@ export const PrescriptionMap: React.FC = () => {
 
       {/* Main Map & Plant Target Detail Card */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left: Leaflet Map Container */}
         <div className="lg:col-span-8 glass-panel rounded-3xl overflow-hidden border border-slate-800 h-[520px] relative shadow-2xl">
-          
+
           {/* Map Color Legend Overlay */}
           <div className="absolute top-3 left-3 z-[1000] glass-panel bg-slate-950/90 p-2.5 rounded-xl border border-slate-800 flex items-center space-x-3 text-xs">
             <span className="font-bold text-white text-[11px]">Pin Legend:</span>
@@ -336,10 +336,10 @@ export const PrescriptionMap: React.FC = () => {
 
         {/* Right: Selected Plant Prescription Card & Trigger Action */}
         <div className="lg:col-span-4 space-y-4">
-          
+
           {selectedFeature ? (
             <div className="glass-panel p-6 rounded-3xl border border-emerald-500/30 space-y-5 shadow-xl">
-              
+
               {/* Header */}
               <div className="flex items-start justify-between border-b border-slate-800 pb-3">
                 <div>

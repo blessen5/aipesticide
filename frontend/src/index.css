@@ -11,7 +11,12 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: -0.025em;
   }
@@ -25,7 +30,7 @@
 
 .bg-cad-grid {
   background-size: 40px 40px;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
@@ -41,7 +46,7 @@
   background: #121215;
   border: 1px solid #27272a;
   border-radius: 0.875rem;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
     0 4px 24px -2px rgba(0, 0, 0, 0.5);
   transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
@@ -49,7 +54,7 @@
 
 .card-surface:hover {
   border-color: #3f3f46;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
     0 8px 30px -4px rgba(0, 0, 0, 0.6);
 }
@@ -61,7 +66,7 @@
   border: 1px solid #27272a;
   border-radius: 0.875rem;
   overflow: hidden;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
     0 4px 24px -2px rgba(0, 0, 0, 0.5);
   transition: border-color 0.2s ease;
@@ -70,14 +75,15 @@
 .spotlight-card::before {
   content: "";
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: radial-gradient(
-    500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
-    rgba(255, 255, 255, 0.06),
-    transparent 50%
-  );
+  background: radial-gradient(500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+      rgba(255, 255, 255, 0.06),
+      transparent 50%);
   z-index: 1;
 }
 
@@ -119,17 +125,20 @@
 
 /* ──────── Shimmer Skeleton Loading ──────── */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .shimmer-skeleton {
-  background: linear-gradient(
-    90deg,
-    #18181b 0%,
-    #27272a 50%,
-    #18181b 100%
-  );
+  background: linear-gradient(90deg,
+      #18181b 0%,
+      #27272a 50%,
+      #18181b 100%);
   background-size: 200% 100%;
   animation: shimmer 1.6s infinite ease-in-out;
 }
@@ -139,13 +148,16 @@
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: #09090b;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #27272a;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
 }
@@ -163,5 +175,3 @@
 .leaflet-tile-pane {
   filter: brightness(0.85) contrast(1.15) saturate(1.05) invert(0.92) hue-rotate(180deg);
 }
-
-
