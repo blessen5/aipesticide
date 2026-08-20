@@ -15,7 +15,7 @@ import { Analytics } from './pages/Analytics';
 import { Demo } from './pages/Demo';
 import { KnowledgeBaseAdmin } from './pages/KnowledgeBaseAdmin';
 import { Login } from './pages/Login';
-import { LanguageProvider } from './i18n';
+import { AutoTranslate, LanguageProvider } from './i18n';
 
 export const App: React.FC = () => {
   const [role, setRole] = React.useState<string | null>(localStorage.getItem('userRole'));
@@ -25,6 +25,7 @@ export const App: React.FC = () => {
   return (
     <LanguageProvider>
       <BrowserRouter>
+        <AutoTranslate />
         <div className="app-shell min-h-screen flex flex-col text-zinc-100 selection:bg-emerald-500 selection:text-black relative overflow-x-hidden">
           <div className="fixed inset-0 bg-dot-grid opacity-20 pointer-events-none" />
           <div className="app-bg-glow app-bg-glow-one" /><div className="app-bg-glow app-bg-glow-two" /><div className="app-bg-glow app-bg-glow-three" />
