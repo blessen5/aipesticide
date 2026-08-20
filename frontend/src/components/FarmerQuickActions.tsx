@@ -1,0 +1,7 @@
+import React from 'react';
+import {Link,useLocation} from 'react-router-dom';
+import {Camera,Map,CloudSun,Sprout} from 'lucide-react';
+import {useLanguage} from '../i18n';
+const farmImage='https://images.unsplash.com/photo-1679245386180-73414c9d3276?auto=format&fit=crop&w=1000&q=78';
+const farmerImage='https://images.unsplash.com/photo-1707811179851-c1f93698ad46?auto=format&fit=crop&w=1000&q=78';
+export const FarmerQuickActions:React.FC=()=>{const {t}=useLanguage();const location=useLocation();if(location.pathname==='/demo'||location.pathname==='/admin/knowledge')return null;const actions=[{to:'/scan',label:t('startScan'),Icon:Camera,image:farmerImage},{to:'/map',label:t('openMap'),Icon:Map,image:farmImage},{to:'/intelligence',label:t('checkWeather'),Icon:CloudSun,image:farmImage},{to:'/sprayer',label:t('controlSprayer'),Icon:Sprout,image:farmerImage}];return <section className="farmer-actions" aria-label={t('farmerHelp')}><div className="farmer-actions-head"><div><span>👨‍🌾</span><div><strong>{t('farmerHelp')}</strong><small>Tap a picture to continue</small></div></div></div><div className="farmer-actions-grid">{actions.map(({to,label,Icon,image})=><Link to={to} key={to} className="farmer-action-card"><img src={image} alt="" loading="lazy"/><span className="farmer-action-shade"/><span className="farmer-action-content"><Icon/><b>{label}</b><i>→</i></span></Link>)}</div></section>};
