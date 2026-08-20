@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
+import { FarmerQuickActions } from './components/FarmerQuickActions';
 import { Dashboard } from './pages/Dashboard';
 import { IntelligenceCenter } from './pages/IntelligenceCenter';
 import { ScanPlant } from './pages/ScanPlant';
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
           <div className="app-bg-glow app-bg-glow-one" /><div className="app-bg-glow app-bg-glow-two" /><div className="app-bg-glow app-bg-glow-three" />
           <Navbar currentRole={role} onLogout={handleLogout} onRoleChange={handleRoleChange} />
           <main className="page-enter flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 relative z-10">
+            <FarmerQuickActions />
             <Routes>
               <Route path="/" element={<Dashboard />} /><Route path="/intelligence" element={<IntelligenceCenter />} /><Route path="/scan" element={<ScanPlant />} /><Route path="/detect" element={<Navigate to="/scan" replace />} /><Route path="/map" element={<PrescriptionMap />} /><Route path="/sprayer" element={<SprayerControl />} /><Route path="/operations" element={<Navigate to="/sprayer" replace />} /><Route path="/history" element={<SprayHistory />} /><Route path="/audit" element={<AuditHistory />} /><Route path="/storage" element={<StorageRegistry />} /><Route path="/analytics" element={<Analytics />} /><Route path="/demo" element={<Demo />} /><Route path="/admin/knowledge" element={<KnowledgeBaseAdmin />} /><Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
