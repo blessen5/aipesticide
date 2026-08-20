@@ -12,6 +12,7 @@ from app.api.endpoints import router as api_router
 from app.api.esp32_endpoints import hardware_router
 from app.api.demo_router import demo_router
 from app.api.knowledge_endpoints import router as knowledge_router
+from app.api.weather_scouting_router import router as weather_scouting_router
 from app.services.demo_data_service import seed_demo_data
 
 
@@ -82,7 +83,7 @@ app.add_middleware(
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 # Static file serving for uploads
@@ -101,6 +102,8 @@ app.include_router(demo_router, prefix=settings.API_V1_STR)
 # Include Knowledge Base router
 app.include_router(knowledge_router, prefix=settings.API_V1_STR + "/knowledge")
 
+# Weather-aware spray-window intelligence and time-based scouting
+app.include_router(weather_scouting_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def root():

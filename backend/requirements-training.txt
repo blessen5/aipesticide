@@ -1,0 +1,6 @@
+# Install after the core API requirements when training models.
+-r requirements.txt
+
+# Vision training dependencies; keep these out of the lightweight API runtime.
+torch>=2.2.0
+torchvision>=0.17.0
