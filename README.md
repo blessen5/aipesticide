@@ -99,12 +99,3 @@ Frontend UI will start at: `http://localhost:5173`
 7. Check **Analytics** to view the **65.4% pesticide savings** graph.
 
 ---
-
-## 🎯 Presentation Q&A Cheat Sheet
-
-- **Q: Does this require continuous internet connectivity in rural fields?**
-  - *A: AI inference can run on edge devices or local gateways, and the ESP32 communicates over local Wi-Fi/Bluetooth with offline cache syncing.*
-- **Q: How is the dosage calculated?**
-  - *A: The agronomy engine adheres to standardized agricultural extension guidelines, scaling active ingredients based on crop type, leaf area index, and detected infection severity.*
-- **Q: Can it integrate with existing sprayers?**
-  - *A: Yes, the ESP32 unit is designed as an affordable retrofit kit (relay + solenoid valve) for existing backpack or boom sprayers.*
